@@ -3,22 +3,15 @@ plugins {
 }
 
 android {
-    namespace 'com.subho760.c_to_app'
+    namespace 'com.night.background'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.subho760.c_to_app"
+        applicationId "com.night.background"
         minSdk 21
         targetSdk 34
         versionCode 1
         versionName "1.0"
-    }
-
-    // ADD THIS BLOCK: This forces Gradle to allow an APK without Java code
-    packaging {
-        jniLibs {
-            useLegacyPackaging = true
-        }
     }
 
     buildTypes {
