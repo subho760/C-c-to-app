@@ -1,0 +1,72 @@
+name: Build Signed Pure C++ APK & AAB
+
+# "on: workflow_dispatch" means 100% manual. No automatic builds on pushes!
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Setup Android NDK
+      uses: nttld/setup-ndk@v1
+      id: setup-ndk
+      with:
+        ndk-version: r26b
+
+    - name: Decode Keystore
+      run: |
+        echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/release-key.jks
+
+    # Compiles and packs BOTH APK and AAB at once
+    - name: Build with Gradle
+      run: |
+        chmod +x gradlew
+        ./gradlew :app:assembleRelease :app:bundleRelease
+      env:
+        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+
+    # Signs both output files manually using your secrets
+    - name: Sign Android Outputs
+      run: |
+        # 1. Sign the APK file
+        $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks app/release-key.jks \
+          --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
+          --ks-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" \
+          --key-pass pass:"${{ secrets.KEY_PASSWORD }}" \
+          --out app/build/outputs/apk/release/app-release-signed.apk \
+          app/build/outputs/apk/release/app-release-unsigned.apk
+
+        # 2. Sign the AAB file
+        jarsigner -keystore app/release-key.jks \
+          -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+          -keypass "${{ secrets.KEY_PASSWORD }}" \
+          app/build/outputs/bundle/release/app-release.aab \
+          "${{ secrets.KEY_ALIAS }}"
+
+    # Uploads both artifacts for you to download onto your phone
+    - name: Upload Signed APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: Signed-APK-Download
+        path: app/build/outputs/apk/release/app-release-signed.apk
+
+    - name: Upload Signed AAB
+      uses: actions/upload-artifact@v4
+      with:
+        name: Signed-AAB-Download
+        path: app/build/outputs/bundle/release/app-release.aab
+        
