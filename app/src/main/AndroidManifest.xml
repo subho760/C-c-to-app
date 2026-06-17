@@ -1,7 +1,7 @@
 
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.google.com/apk/res/android"
-    package="com.subho760.c_to_app">
+    package="com.nightshadow.background">
 
     <application
         android:hasCode="false"
