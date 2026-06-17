@@ -38,22 +38,30 @@ jobs:
       env:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 
-    # Signs both output files with corrected path names
+    # Automatically finds the built files and signs them safely
     - name: Sign Android Outputs
       run: |
-        # 1. Sign the APK file (Corrected input filename here)
+        # Find the raw unsigned APK dynamically
+        RAW_APK=$(find app/build/outputs/apk/ -name "*.apk" ! -name "*signed*" | head -n 1)
+        echo "Found APK at: $RAW_APK"
+        
+        # Sign the APK file
         $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks app/release-key.jks \
           --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
           --ks-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" \
           --key-pass pass:"${{ secrets.KEY_PASSWORD }}" \
           --out app/build/outputs/apk/release/app-release-signed.apk \
-          app/build/outputs/apk/release/app-release.apk
+          "$RAW_APK"
 
-        # 2. Sign the AAB file
+        # Find the raw bundle dynamically
+        RAW_AAB=$(find app/build/outputs/bundle/ -name "*.aab" | head -n 1)
+        echo "Found AAB at: $RAW_AAB"
+
+        # Sign the AAB file
         jarsigner -keystore app/release-key.jks \
           -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
           -keypass "${{ secrets.KEY_PASSWORD }}" \
-          app/build/outputs/bundle/release/app-release.aab \
+          "$RAW_AAB" \
           "${{ secrets.KEY_ALIAS }}"
 
     # Uploads both artifacts for you to download onto your phone
