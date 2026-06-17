@@ -1,1 +1,29 @@
 
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.subho760.c_to_app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.subho760.c_to_app"
+        minSdk 21
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+dependencies {
+    // Links your executable app module directly to your C++ wrapper module
+    implementation project(':native-lib')
+}
