@@ -1,1 +1,28 @@
 
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.google.com/apk/res/android"
+    package="com.subho760.c_to_app">
+
+    <application
+        android:hasCode="false"
+        android:allowBackup="true"
+        android:icon="@drawable/ic_launcher"
+        android:label="C to App"
+        android:supportsRtl="true">
+        
+        <activity
+            android:name="android.app.NativeActivity"
+            android:exported="true">
+            
+            <meta-data
+                android:name="android.app.lib_name"
+                android:value="native-lib" />
+                
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
