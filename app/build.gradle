@@ -7,13 +7,20 @@ android {
     namespace 'com.subho760.c_to_app'
     compileSdk 34
 
-    defaultConfig {
-        applicationId "com.subho760.c_to_app"
+        defaultConfig {
+        // 1. SET YOUR PACKAGE NAME HERE (Keep it lowercase with dots)
+        applicationId "com.subho760.c_to_app" 
+        
         minSdk 21
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        
+        // 2. SET YOUR VERSION CODE HERE (Must be a whole number: 1, 2, 3...)
+        versionCode 1 
+        
+        // 3. SET YOUR VERSION NAME HERE (The visible version string: "1.0", "2.0")
+        versionName "1.0" 
     }
+
 
     buildTypes {
         release {
