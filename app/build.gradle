@@ -23,5 +23,6 @@ android {
 }
 
 dependencies {
+    // Links your C++ game logic directly into your app container
     implementation project(':native-lib')
 }
