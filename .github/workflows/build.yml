@@ -1,6 +1,5 @@
 name: Build Signed Pure C++ APK & AAB
 
-# "on: workflow_dispatch" means 100% manual. No automatic builds on pushes!
 on:
   workflow_dispatch:
 
@@ -39,16 +38,16 @@ jobs:
       env:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 
-    # Signs both output files manually using your secrets
+    # Signs both output files with corrected path names
     - name: Sign Android Outputs
       run: |
-        # 1. Sign the APK file
+        # 1. Sign the APK file (Corrected input filename here)
         $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks app/release-key.jks \
           --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
           --ks-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" \
           --key-pass pass:"${{ secrets.KEY_PASSWORD }}" \
           --out app/build/outputs/apk/release/app-release-signed.apk \
-          app/build/outputs/apk/release/app-release-unsigned.apk
+          app/build/outputs/apk/release/app-release.apk
 
         # 2. Sign the AAB file
         jarsigner -keystore app/release-key.jks \
@@ -69,4 +68,3 @@ jobs:
       with:
         name: Signed-AAB-Download
         path: app/build/outputs/bundle/release/app-release.aab
-        
