@@ -13,9 +13,8 @@ dependencyResolutionManagement {
     }
 }
 
+// MUST match your actual GitHub repository name exactly
 rootProject.name = "C-c-to-app"
+
 include ':app'
 include ':native-lib'
-
-// This explicitly points Gradle to your exact folder name
-project(':native-lib').projectDir = new File(settingsDir, 'native-lib')
