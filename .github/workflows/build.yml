@@ -30,48 +30,39 @@ jobs:
       run: |
         echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/release-key.jks
 
-    # Compiles everything and lists files so we can verify outputs
     - name: Build with Gradle
       run: |
         chmod +x gradlew
         ./gradlew :app:assembleRelease :app:bundleRelease
-        echo "=== Checking generated build outputs ==="
-        ls -R app/build/outputs/ || echo "Outputs directory not found!"
       env:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 
-    # Dynamically scans and signs the outputs
     - name: Sign Android Outputs
       run: |
-        RAW_APK=$(find app/build/outputs/ -name "*.apk" ! -name "*signed*" | head -n 1)
-        echo "Found APK to sign: $RAW_APK"
-        
+        # Sign the generated APK
         $ANDROID_HOME/build-tools/34.0.0/apksigner sign --ks app/release-key.jks \
           --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
           --ks-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" \
           --key-pass pass:"${{ secrets.KEY_PASSWORD }}" \
-          --out app/build/outputs/app-release-signed.apk \
-          "$RAW_APK"
+          --out app/build/outputs/apk/release/app-release-signed.apk \
+          app/build/outputs/apk/release/app-release.apk
 
-        RAW_AAB=$(find app/build/outputs/ -name "*.aab" | head -n 1)
-        echo "Found AAB to sign: $RAW_AAB"
-
+        # Sign the generated AAB
         jarsigner -keystore app/release-key.jks \
           -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
           -keypass "${{ secrets.KEY_PASSWORD }}" \
-          "$RAW_AAB" \
+          app/build/outputs/bundle/release/app-release.aab \
           "${{ secrets.KEY_ALIAS }}"
 
-    # Uploads the outputs to your summary page
     - name: Upload Signed APK
       uses: actions/upload-artifact@v4
       with:
         name: Signed-APK-Download
-        path: app/build/outputs/app-release-signed.apk
+        path: app/build/outputs/apk/release/app-release-signed.apk
 
     - name: Upload Signed AAB
       uses: actions/upload-artifact@v4
       with:
         name: Signed-AAB-Download
-        path: app/build/outputs/bundle/release/*.aab
+        path: app/build/outputs/bundle/release/app-release.aab
         
