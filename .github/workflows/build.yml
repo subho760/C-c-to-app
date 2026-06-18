@@ -37,7 +37,7 @@ jobs:
       env:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 
-    # Signs the outputs using jarsigner for both files to bypass apksigner certificate bugs
+        # Signs the outputs using jarsigner for both files to bypass apksigner certificate bugs
     - name: Sign Android Outputs
       run: |
         # 1. Search the entire project directory for the generated APK (skipping intermediate caches)
@@ -51,23 +51,40 @@ jobs:
           "$REAL_APK" \
           "${{ secrets.KEY_ALIAS }}"
 
-        # 3. Optimize and verify the signed APK file using zipalign
-        $ANDROID_HOME/build-tools/34.0.0/zipalign -f -v 4 "$REAL_APK" app/build/outputs/app-release-signed.apk
+        # 3. Create the output folder structure explicitly so zipalign doesn't crash
+        mkdir -p app/build/outputs/apk/release/
 
-        # 4. Search the entire project directory for the generated AAB bundle file
+        # 4. Optimize and verify the signed APK file using zipalign
+        $ANDROID_HOME/build-tools/34.0.0/zipalign -f -v 4 "$REAL_APK" app/build/outputs/apk/release/app-release-signed.apk
+
+        # 5. Search the entire project directory for the generated AAB bundle file
         REAL_AAB=$(find . -name "*.aab" ! -path "*/intermediates/*" | head -n 1)
         echo "--> SUCCESS: Found AAB file at: $REAL_AAB"
 
-        # 5. Sign the discovered bundle target file
+        # 6. Sign the discovered bundle target file
         jarsigner -keystore app/release-key.jks \
           -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
           -keypass "${{ secrets.KEY_PASSWORD }}" \
           "$REAL_AAB" \
           "${{ secrets.KEY_ALIAS }}"
 
-        # 6. Copy the signed bundle to a clean location for uploading
+        # 7. Copy the signed bundle to a clean location for uploading
         mkdir -p app/build/outputs/final-bundle/
         cp "$REAL_AAB" app/build/outputs/final-bundle/app-release-signed.aab
+
+    # Uploads the final signed files directly from the explicit output folders
+    - name: Upload Signed APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: Signed-APK-Download
+        path: app/build/outputs/apk/release/app-release-signed.apk
+
+    - name: Upload Signed AAB
+      uses: actions/upload-artifact@v4
+      with:
+        name: Signed-AAB-Download
+        path: app/build/outputs/final-bundle/app-release-signed.aab
+
 
     # Uploads the final signed files directly from the explicit output folders
     - name: Upload Signed APK
