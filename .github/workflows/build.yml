@@ -37,7 +37,7 @@ jobs:
       env:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 
-      # Dynamically finds and signs the outputs wherever they land
+          # Dynamically finds and signs the outputs wherever they land
     - name: Sign Android Outputs
       run: |
         # 1. Search the entire project directory for the generated APK (skipping intermediate caches)
@@ -48,10 +48,9 @@ jobs:
         export KS_PASS="${{ secrets.KEYSTORE_PASSWORD }}"
         export KEY_PASS="${{ secrets.KEY_PASSWORD }}"
 
-        # 3. Sign the discovered APK target file using the clean environment variables
+        # 3. Sign the discovered APK target file (Letting apksigner auto-detect the single key)
         $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
           --ks app/release-key.jks \
-          --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
           --ks-pass env:KS_PASS \
           --key-pass env:KEY_PASS \
           --out app/build/outputs/app-release-signed.apk \
@@ -71,6 +70,7 @@ jobs:
         # 6. Copy the signed bundle to a clean location for uploading
         mkdir -p app/build/outputs/final-bundle/
         cp "$REAL_AAB" app/build/outputs/final-bundle/app-release-signed.aab
+
         
 
     # Uploads the final signed files directly from the explicit output folders
