@@ -46,12 +46,20 @@ jobs:
           --out app/build/outputs/apk/release/app-release-signed.apk \
           app/build/outputs/apk/release/app-release-unsigned.apk
 
-        # 2. Sign the generated AAB (Using the true filename)
+        # 2. Dynamically locate the generated AAB bundle file anywhere in the build outputs
+        REAL_AAB=$(find app/build/outputs/ -name "*.aab" | head -n 1)
+        echo "Found AAB file path at: $REAL_AAB"
+
+        # 3. Sign the discovered AAB bundle file
         jarsigner -keystore app/release-key.jks \
           -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
           -keypass "${{ secrets.KEY_PASSWORD }}" \
-          app/build/outputs/bundle/release/app-release.aab \
+          "$REAL_AAB" \
           "${{ secrets.KEY_ALIAS }}"
+
+        # 4. Copy the signed bundle to a fixed location for artifact upload
+        mkdir -p app/build/outputs/final-bundle/
+        cp "$REAL_AAB" app/build/outputs/final-bundle/app-release-signed.aab
 
     - name: Upload Signed APK
       uses: actions/upload-artifact@v4
@@ -63,4 +71,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Signed-AAB-Download
-        path: app/build/outputs/bundle/release/app-release.aab
+        path: app/build/outputs/final-bundle/app-release-signed.aab
