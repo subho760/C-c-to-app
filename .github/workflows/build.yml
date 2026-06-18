@@ -37,34 +37,38 @@ jobs:
       env:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 
-            # Dynamically finds and signs the outputs wherever they land
+      # Dynamically finds and signs the outputs wherever they land
     - name: Sign Android Outputs
       run: |
         # 1. Search the entire project directory for the generated APK (skipping intermediate caches)
         REAL_APK=$(find . -name "*.apk" ! -path "*/intermediates/*" ! -name "*release-key*" | head -n 1)
         echo "--> SUCCESS: Found APK file at: $REAL_APK"
 
-        # 2. Sign the discovered APK target file (Using exact environmental variable inputs)
+        # 2. Map credentials to separate shell variables to prevent argument parsing errors
+        export KS_PASS="${{ secrets.KEYSTORE_PASSWORD }}"
+        export KEY_PASS="${{ secrets.KEY_PASSWORD }}"
+
+        # 3. Sign the discovered APK target file using the clean environment variables
         $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
           --ks app/release-key.jks \
           --ks-key-alias "${{ secrets.KEY_ALIAS }}" \
-          --ks-pass pass:"${{ secrets.KEYSTORE_PASSWORD }}" \
-          --key-pass pass:"${{ secrets.KEY_PASSWORD }}" \
+          --ks-pass env:KS_PASS \
+          --key-pass env:KEY_PASS \
           --out app/build/outputs/app-release-signed.apk \
           "$REAL_APK"
 
-        # 3. Search the entire project directory for the generated AAB bundle file
+        # 4. Search the entire project directory for the generated AAB bundle file
         REAL_AAB=$(find . -name "*.aab" ! -path "*/intermediates/*" | head -n 1)
         echo "--> SUCCESS: Found AAB file at: $REAL_AAB"
 
-        # 4. Sign the discovered bundle target file
+        # 5. Sign the discovered bundle target file
         jarsigner -keystore app/release-key.jks \
           -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
           -keypass "${{ secrets.KEY_PASSWORD }}" \
           "$REAL_AAB" \
           "${{ secrets.KEY_ALIAS }}"
 
-        # 5. Copy the signed bundle to a clean location for uploading
+        # 6. Copy the signed bundle to a clean location for uploading
         mkdir -p app/build/outputs/final-bundle/
         cp "$REAL_AAB" app/build/outputs/final-bundle/app-release-signed.aab
         
