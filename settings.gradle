@@ -13,8 +13,8 @@ dependencyResolutionManagement {
     }
 }
 
-// MUST match your actual GitHub repository name exactly
 rootProject.name = "C-c-to-app"
 
+// These lines tell Gradle exactly what modules exist in the directory
 include ':app'
 include ':native-lib'
