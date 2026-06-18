@@ -37,24 +37,22 @@ jobs:
       env:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 
-          # Dynamically finds and signs the outputs wherever they land
+    # Signs the outputs using jarsigner for both files to bypass apksigner certificate bugs
     - name: Sign Android Outputs
       run: |
         # 1. Search the entire project directory for the generated APK (skipping intermediate caches)
         REAL_APK=$(find . -name "*.apk" ! -path "*/intermediates/*" ! -name "*release-key*" | head -n 1)
         echo "--> SUCCESS: Found APK file at: $REAL_APK"
 
-        # 2. Map credentials to separate shell variables to prevent argument parsing errors
-        export KS_PASS="${{ secrets.KEYSTORE_PASSWORD }}"
-        export KEY_PASS="${{ secrets.KEY_PASSWORD }}"
+        # 2. Sign the discovered APK target file using jarsigner
+        jarsigner -keystore app/release-key.jks \
+          -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+          -keypass "${{ secrets.KEY_PASSWORD }}" \
+          "$REAL_APK" \
+          "${{ secrets.KEY_ALIAS }}"
 
-        # 3. Sign the discovered APK target file (Letting apksigner auto-detect the single key)
-        $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
-          --ks app/release-key.jks \
-          --ks-pass env:KS_PASS \
-          --key-pass env:KEY_PASS \
-          --out app/build/outputs/app-release-signed.apk \
-          "$REAL_APK"
+        # 3. Optimize and verify the signed APK file using zipalign
+        $ANDROID_HOME/build-tools/34.0.0/zipalign -f -v 4 "$REAL_APK" app/build/outputs/app-release-signed.apk
 
         # 4. Search the entire project directory for the generated AAB bundle file
         REAL_AAB=$(find . -name "*.aab" ! -path "*/intermediates/*" | head -n 1)
@@ -70,8 +68,6 @@ jobs:
         # 6. Copy the signed bundle to a clean location for uploading
         mkdir -p app/build/outputs/final-bundle/
         cp "$REAL_AAB" app/build/outputs/final-bundle/app-release-signed.aab
-
-        
 
     # Uploads the final signed files directly from the explicit output folders
     - name: Upload Signed APK
