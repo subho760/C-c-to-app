@@ -17,37 +17,39 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Android SDK & Tools
+    # Automatically sets up the Android SDK and makes it accessible to the runner
+    - name: Setup Android SDK
       uses: android-actions/setup-android@v3
-
-    # Ensures CMake and the exact NDK version required by your project are installed
-    - name: Install Android NDK and CMake
-      run: |
-        sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
+      id: setup-android
 
     - name: Decode Keystore
       run: |
         echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/release-key.jks
 
-    # Compiles the workspace modules natively
+    # Compiles your multi-module native project, automatically downloading NDK/CMake via licenses
     - name: Build with Gradle
       run: |
+        # Auto-accept licenses so Gradle can download NDK 26b and CMake seamlessly
+        yes | ${{ steps.setup-android.outputs.sdk-path }}/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        
         gradle assembleRelease bundleRelease --stacktrace
       env:
-        ANDROID_NDK_HOME: ${{ steps.setup-android.outputs.sdk-path }}/ndk/26.1.10909125
+        ANDROID_HOME: ${{ steps.setup-android.outputs.sdk-path }}
+        ANDROID_DATA_DIR: ${{ steps.setup-android.outputs.sdk-path }}
 
-    # Signs raw outputs securely using environment variable parsing
+    # Signs your outputs smoothly using backend environment blocks to handle your '@' password symbol
     - name: Sign Android Outputs
       env:
         KS_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         K_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         K_ALIAS: ${{ secrets.KEY_ALIAS }}
+        ANDROID_HOME: ${{ steps.setup-android.outputs.sdk-path }}
       run: |
-        # 1. Find the generated APK
+        # 1. Find the compiled raw APK
         REAL_APK=$(find . -name "*.apk" ! -path "*/intermediates/*" ! -name "*release-key*" | head -n 1)
         echo "--> SUCCESS: Found raw APK file at: $REAL_APK"
 
-        # 2. Sign the raw APK file safely
+        # 2. Sign the raw APK file securely
         jarsigner -keystore app/release-key.jks \
           -storepass:env KS_PASSWORD \
           -keypass:env K_PASSWORD \
@@ -57,24 +59,28 @@ jobs:
         # 3. Create a clean final output directory
         mkdir -p app/build/outputs/final-release/
 
-        # 4. Align the signed APK into our final directory
-        $ANDROID_HOME/build-tools/34.0.0/zipalign -f -v 4 "$REAL_APK" app/build/outputs/final-release/app-release-signed.apk
+        # 4. Locate the Android build tools directory dynamically to run zipalign
+        BUILD_TOOLS_DIR=$(find $ANDROID_HOME/build-tools/ -maxdepth 1 -mindepth 1 -type d | sort -V | tail -n 1)
+        echo "--> Using build tools from: $BUILD_TOOLS_DIR"
 
-        # 5. Find the generated AAB bundle file
+        # 5. Align the signed APK into our clean output directory
+        $BUILD_TOOLS_DIR/zipalign -f -v 4 "$REAL_APK" app/build/outputs/final-release/app-release-signed.apk
+
+        # 6. Find the generated AAB bundle file
         REAL_AAB=$(find . -name "*.aab" ! -path "*/intermediates/*" | head -n 1)
         echo "--> SUCCESS: Found AAB file at: $REAL_AAB"
 
-        # 6. Sign the bundle target file
+        # 7. Sign the bundle target file
         jarsigner -keystore app/release-key.jks \
           -storepass:env KS_PASSWORD \
           -keypass:env K_PASSWORD \
           "$REAL_AAB" \
           "$K_ALIAS"
 
-        # 7. Copy the signed bundle to the final output folder
+        # 8. Copy the signed bundle to the final output folder
         cp "$REAL_AAB" app/build/outputs/final-release/app-release-signed.aab
 
-    # Uploads the final signed files
+    # Uploads your final signed assets
     - name: Upload Signed APK
       uses: actions/upload-artifact@v4
       with:
@@ -86,4 +92,3 @@ jobs:
       with:
         name: Signed-AAB-Download
         path: app/build/outputs/final-release/app-release-signed.aab
-        
