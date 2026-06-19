@@ -17,33 +17,28 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # Automatically sets up the Android SDK and makes it accessible to the runner
+    # Automatically configures the Android SDK and adds platform-tools to the system path
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
-      id: setup-android
 
     - name: Decode Keystore
       run: |
         echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/release-key.jks
 
-    # Compiles your multi-module native project, automatically downloading NDK/CMake via licenses
+    # Automatically accepts licenses and executes the build
     - name: Build with Gradle
       run: |
-        # Auto-accept licenses so Gradle can download NDK 26b and CMake seamlessly
-        yes | ${{ steps.setup-android.outputs.sdk-path }}/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        # Accept licenses utilizing the global sdkmanager binary path seamlessly
+        yes | sdkmanager --licenses || true
         
         gradle assembleRelease bundleRelease --stacktrace
-      env:
-        ANDROID_HOME: ${{ steps.setup-android.outputs.sdk-path }}
-        ANDROID_DATA_DIR: ${{ steps.setup-android.outputs.sdk-path }}
 
-    # Signs your outputs smoothly using backend environment blocks to handle your '@' password symbol
+    # Signs raw outputs securely using environment memory blocks
     - name: Sign Android Outputs
       env:
         KS_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         K_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         K_ALIAS: ${{ secrets.KEY_ALIAS }}
-        ANDROID_HOME: ${{ steps.setup-android.outputs.sdk-path }}
       run: |
         # 1. Find the compiled raw APK
         REAL_APK=$(find . -name "*.apk" ! -path "*/intermediates/*" ! -name "*release-key*" | head -n 1)
@@ -59,7 +54,7 @@ jobs:
         # 3. Create a clean final output directory
         mkdir -p app/build/outputs/final-release/
 
-        # 4. Locate the Android build tools directory dynamically to run zipalign
+        # 4. Locate the build tools directory dynamically using the global path variable
         BUILD_TOOLS_DIR=$(find $ANDROID_HOME/build-tools/ -maxdepth 1 -mindepth 1 -type d | sort -V | tail -n 1)
         echo "--> Using build tools from: $BUILD_TOOLS_DIR"
 
