@@ -37,36 +37,40 @@ jobs:
       env:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 
-    # Signs the outputs cleanly using standard stream input to prevent shell parsing bugs
+    # Signs raw outputs first, then aligns the APK correctly
     - name: Sign Android Outputs
+      env:
+        KS_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        K_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        K_ALIAS: ${{ secrets.KEY_ALIAS }}
       run: |
-        # 1. Search the entire project directory for the generated APK (skipping intermediate caches)
+        # 1. Search the entire project directory for the generated APK
         REAL_APK=$(find . -name "*.apk" ! -path "*/intermediates/*" ! -name "*release-key*" | head -n 1)
-        echo "--> SUCCESS: Found APK file at: $REAL_APK"
+        echo "--> SUCCESS: Found raw APK file at: $REAL_APK"
 
-        # 2. Create a clean, reliable folder for our final outputs
+        # 2. Sign the raw APK file in-place using environment variables
+        jarsigner -keystore app/release-key.jks \
+          -storepass "$KS_PASSWORD" \
+          -keypass "$K_PASSWORD" \
+          "$REAL_APK" \
+          "$K_ALIAS"
+
+        # 3. Create a clean folder for final outputs
         mkdir -p app/build/outputs/final-release/
 
-        # 3. Optimize and output the file directly to our clean folder FIRST
+        # 4. Align the signed APK into our final directory
         $ANDROID_HOME/build-tools/34.0.0/zipalign -f -v 4 "$REAL_APK" app/build/outputs/final-release/app-release-signed.apk
-
-        # 4. Sign the newly aligned APK directly (Passing passwords via env blocks to prevent parsing issues)
-        jarsigner -keystore app/release-key.jks \
-          -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
-          -keypass "${{ secrets.KEY_PASSWORD }}" \
-          app/build/outputs/final-release/app-release-signed.apk \
-          "${{ secrets.KEY_ALIAS }}"
 
         # 5. Search the entire project directory for the generated AAB bundle file
         REAL_AAB=$(find . -name "*.aab" ! -path "*/intermediates/*" | head -n 1)
         echo "--> SUCCESS: Found AAB file at: $REAL_AAB"
 
-        # 6. Sign the discovered bundle target file
+        # 6. Sign the bundle target file
         jarsigner -keystore app/release-key.jks \
-          -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
-          -keypass "${{ secrets.KEY_PASSWORD }}" \
+          -storepass "$KS_PASSWORD" \
+          -keypass "$K_PASSWORD" \
           "$REAL_AAB" \
-          "${{ secrets.KEY_ALIAS }}"
+          "$K_ALIAS"
 
         # 7. Copy the signed bundle to our clean final output folder
         cp "$REAL_AAB" app/build/outputs/final-release/app-release-signed.aab
