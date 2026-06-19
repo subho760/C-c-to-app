@@ -37,31 +37,31 @@ jobs:
       env:
         ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
 
-    # Signs raw outputs using standard text stream ingestion to handle password symbols flawlessly
+    # Signs raw outputs securely using environment variable parsing
     - name: Sign Android Outputs
       env:
         KS_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         K_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         K_ALIAS: ${{ secrets.KEY_ALIAS }}
       run: |
-        # 1. Search the entire project directory for the generated APK
+        # 1. Find the generated APK
         REAL_APK=$(find . -name "*.apk" ! -path "*/intermediates/*" ! -name "*release-key*" | head -n 1)
         echo "--> SUCCESS: Found raw APK file at: $REAL_APK"
 
-        # 2. Sign the raw APK file by piping the credentials directly (eliminates command argument parsing bugs)
+        # 2. Sign the raw APK file (Using env blocks handles special characters like @ perfectly)
         jarsigner -keystore app/release-key.jks \
           -storepass:env KS_PASSWORD \
           -keypass:env K_PASSWORD \
           "$REAL_APK" \
           "$K_ALIAS"
 
-        # 3. Create a clean folder for final outputs
+        # 3. Create clean final output directory
         mkdir -p app/build/outputs/final-release/
 
         # 4. Align the signed APK into our final directory
         $ANDROID_HOME/build-tools/34.0.0/zipalign -f -v 4 "$REAL_APK" app/build/outputs/final-release/app-release-signed.apk
 
-        # 5. Search the entire project directory for the generated AAB bundle file
+        # 5. Find the generated AAB bundle file
         REAL_AAB=$(find . -name "*.aab" ! -path "*/intermediates/*" | head -n 1)
         echo "--> SUCCESS: Found AAB file at: $REAL_AAB"
 
@@ -72,10 +72,10 @@ jobs:
           "$REAL_AAB" \
           "$K_ALIAS"
 
-        # 7. Copy the signed bundle to our clean final output folder
+        # 7. Copy the signed bundle to the final output folder
         cp "$REAL_AAB" app/build/outputs/final-release/app-release-signed.aab
 
-    # Uploads the final signed files directly from our clean final output folder
+    # Uploads the final signed files
     - name: Upload Signed APK
       uses: actions/upload-artifact@v4
       with:
