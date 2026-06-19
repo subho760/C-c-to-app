@@ -17,14 +17,13 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    - name: Setup Android SDK
+    - name: Setup Android SDK & Tools
       uses: android-actions/setup-android@v3
 
-    - name: Setup Android NDK
-      uses: nttld/setup-ndk@v1
-      id: setup-ndk
-      with:
-        ndk-version: r26b
+    # Ensures CMake and the exact NDK version required by your project are installed
+    - name: Install Android NDK and CMake
+      run: |
+        sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1"
 
     - name: Decode Keystore
       run: |
@@ -35,9 +34,9 @@ jobs:
       run: |
         gradle assembleRelease bundleRelease --stacktrace
       env:
-        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        ANDROID_NDK_HOME: ${{ steps.setup-android.outputs.sdk-path }}/ndk/26.1.10909125
 
-    # Signs raw outputs securely using backend environment parsing to handle special symbols safely
+    # Signs raw outputs securely using environment variable parsing
     - name: Sign Android Outputs
       env:
         KS_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -48,7 +47,7 @@ jobs:
         REAL_APK=$(find . -name "*.apk" ! -path "*/intermediates/*" ! -name "*release-key*" | head -n 1)
         echo "--> SUCCESS: Found raw APK file at: $REAL_APK"
 
-        # 2. Sign the raw APK file (Using env blocks handles special characters like @ perfectly)
+        # 2. Sign the raw APK file safely
         jarsigner -keystore app/release-key.jks \
           -storepass:env KS_PASSWORD \
           -keypass:env K_PASSWORD \
@@ -87,3 +86,4 @@ jobs:
       with:
         name: Signed-AAB-Download
         path: app/build/outputs/final-release/app-release-signed.aab
+        
