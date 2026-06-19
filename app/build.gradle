@@ -3,24 +3,27 @@ plugins {
 }
 
 android {
-    namespace 'com.night.background'
-    compileSdk 34
-
-    defaultConfig {
-        applicationId "com.night.background"
-        minSdk 21
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
+    ...
+    signingConfigs {
+        release {
+            // Looks for the file we decoded in the workflow step
+            storeFile file("release-key.jks")
+            storePassword System.getenv("RELEASE_STORE_PASSWORD")
+            keyAlias System.getenv("RELEASE_KEY_ALIAS")
+            keyPassword System.getenv("RELEASE_KEY_PASSWORD")
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            // Tells Gradle to sign the release automatically
+            signingConfig signingConfigs.release
         }
     }
 }
+
 
 dependencies {
     implementation project(':native-lib')
