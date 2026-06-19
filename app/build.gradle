@@ -3,34 +3,21 @@ plugins {
 }
 
 android {
-    namespace 'com.example.cc_to_app' // Make sure this matches your project's actual package name if different
+    namespace 'com.example.cc_to_app'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.cc_to_app" // Make sure this matches your package name
+        applicationId "com.example.cc_to_app"
         minSdk 21
         targetSdk 34
         versionCode 1
         versionName "1.0"
-
-        externalNativeBuild {
-            cmake {
-                cppFlags ""
-            }
-        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-    
-    externalNativeBuild {
-        cmake {
-            path "CMakeLists.txt"
-            version "3.22.1"
         }
     }
 }
