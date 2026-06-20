@@ -17,23 +17,19 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # Automatically configures the Android SDK variables
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-
     - name: Decode Keystore
       run: |
         echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/release-key.jks
 
-    # Accepts licenses using the exact absolute path to the tools directory
+    # Accepts licenses and runs the build using GitHub's built-in Android SDK tools path
     - name: Build with Gradle
       run: |
-        # Use absolute path configuration to accept build-tools licenses safely
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        # Accept build licenses using the native runner's SDK location
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
         
         gradle assembleRelease bundleRelease --stacktrace
 
-    # Signs raw outputs securely using backend memory blocks
+    # Signs your raw outputs securely using environment variable parsing
     - name: Sign Android Outputs
       env:
         KS_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -54,8 +50,8 @@ jobs:
         # 3. Create a clean final output directory
         mkdir -p app/build/outputs/final-release/
 
-        # 4. Locate the build tools directory dynamically using the global path variable
-        BUILD_TOOLS_DIR=$(find $ANDROID_HOME/build-tools/ -maxdepth 1 -mindepth 1 -type d | sort -V | tail -n 1)
+        # 4. Locate the build tools directory dynamically from the native SDK root folder
+        BUILD_TOOLS_DIR=$(find $ANDROID_SDK_ROOT/build-tools/ -maxdepth 1 -mindepth 1 -type d | sort -V | tail -n 1)
         echo "--> Using build tools from: $BUILD_TOOLS_DIR"
 
         # 5. Align the signed APK into our clean output directory
