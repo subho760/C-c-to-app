@@ -21,10 +21,13 @@ jobs:
       run: |
         echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/release-key.jks
 
-    # Compiles natively using the runner's default SDK structure
+    # Compiles natively while injecting explicit property bypass flags to skip legacy architecture errors
     - name: Build with Gradle
       run: |
-        gradle assembleRelease bundleRelease --stacktrace
+        gradle assembleRelease bundleRelease \
+          -Pandroid.useDeprecatedNdk=true \
+          -Pandroid.skipUnsupportedAbis=true \
+          --stacktrace
 
     # Signs your raw outputs securely using environment memory blocks
     - name: Sign Android Outputs
