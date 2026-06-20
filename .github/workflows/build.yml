@@ -17,11 +17,17 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
+    # Setup the exact legacy NDK version your older Gradle plugin expects
+    - name: Install Compatible NDK
+      uses: android-actions/setup-android@v3
+      with:
+        ndk-version: '21.4.7075529'
+
     - name: Decode Keystore
       run: |
         echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/release-key.jks
 
-    # Compiles cleanly now that gradle.properties is overriding the initialization lifecycle
+    # Compiles natively with the explicitly matched NDK path mapping
     - name: Build with Gradle
       run: |
         gradle assembleRelease bundleRelease --stacktrace
