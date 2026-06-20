@@ -21,7 +21,7 @@ jobs:
       run: |
         echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/release-key.jks
 
-    # Builds your C++ library and APK cleanly using your new module filters
+    # Compiles cleanly now that gradle.properties is overriding the initialization lifecycle
     - name: Build with Gradle
       run: |
         gradle assembleRelease bundleRelease --stacktrace
