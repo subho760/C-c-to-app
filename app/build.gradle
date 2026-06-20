@@ -12,6 +12,11 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
+
+        // Restrict toolchains to modern architectures to bypass the old MIPS crash
+        ndk {
+            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
+        }
     }
 
     buildTypes {
