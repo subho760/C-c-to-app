@@ -21,12 +21,10 @@ jobs:
       run: |
         echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/release-key.jks
 
-    # Compiles natively while feeding the runner's pre-installed path straight into Gradle
+    # Compiles natively using the runner's default SDK structure
     - name: Build with Gradle
       run: |
         gradle assembleRelease bundleRelease --stacktrace
-      env:
-        ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/26.1.10909125
 
     # Signs your raw outputs securely using environment memory blocks
     - name: Sign Android Outputs
