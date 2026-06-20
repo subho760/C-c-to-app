@@ -17,7 +17,7 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
-    # Automatically configures the Android SDK and adds platform-tools to the system path
+    # Automatically configures the Android SDK variables
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
@@ -25,15 +25,15 @@ jobs:
       run: |
         echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/release-key.jks
 
-    # Automatically accepts licenses and executes the build
+    # Accepts licenses using the exact absolute path to the tools directory
     - name: Build with Gradle
       run: |
-        # Accept licenses utilizing the global sdkmanager binary path seamlessly
-        yes | sdkmanager --licenses || true
+        # Use absolute path configuration to accept build-tools licenses safely
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
         
         gradle assembleRelease bundleRelease --stacktrace
 
-    # Signs raw outputs securely using environment memory blocks
+    # Signs raw outputs securely using backend memory blocks
     - name: Sign Android Outputs
       env:
         KS_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
