@@ -21,15 +21,14 @@ jobs:
       run: |
         echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/release-key.jks
 
-    # Accepts licenses and runs the build using GitHub's built-in Android SDK tools path
+    # Compiles natively while feeding the runner's pre-installed path straight into Gradle
     - name: Build with Gradle
       run: |
-        # Accept build licenses using the native runner's SDK location
-        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses || true
-        
         gradle assembleRelease bundleRelease --stacktrace
+      env:
+        ANDROID_NDK_HOME: /usr/local/lib/android/sdk/ndk/26.1.10909125
 
-    # Signs your raw outputs securely using environment variable parsing
+    # Signs your raw outputs securely using environment memory blocks
     - name: Sign Android Outputs
       env:
         KS_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -50,8 +49,8 @@ jobs:
         # 3. Create a clean final output directory
         mkdir -p app/build/outputs/final-release/
 
-        # 4. Locate the build tools directory dynamically from the native SDK root folder
-        BUILD_TOOLS_DIR=$(find $ANDROID_SDK_ROOT/build-tools/ -maxdepth 1 -mindepth 1 -type d | sort -V | tail -n 1)
+        # 4. Locate the build tools directory dynamically from the native SDK folder
+        BUILD_TOOLS_DIR=$(find /usr/local/lib/android/sdk/build-tools/ -maxdepth 1 -mindepth 1 -type d | sort -V | tail -n 1)
         echo "--> Using build tools from: $BUILD_TOOLS_DIR"
 
         # 5. Align the signed APK into our clean output directory
