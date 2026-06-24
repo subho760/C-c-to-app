@@ -1,7 +1,7 @@
 name: Manual Native Build Engine (APK & AAB)
 
 on:
-  workflow_dispatch: # Manual trigger button only
+  workflow_dispatch:
 
 jobs:
   build-project:
@@ -16,7 +16,6 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
-          cache: 'gradle'
 
       - name: Install ImageMagick for Logo Resizing
         run: |
@@ -26,7 +25,6 @@ jobs:
       - name: Auto-Resize and Deploy App Logo
         run: |
           if [ -f "app_logo_source.png" ]; then
-            echo "Source logo located. Generating mipmap buckets..."
             mkdir -p app/src/main/res/mipmap-mdpi
             mkdir -p app/src/main/res/mipmap-hdpi
             mkdir -p app/src/main/res/mipmap-xhdpi
@@ -38,25 +36,21 @@ jobs:
             convert app_logo_source.png -resize 96x96 app/src/main/res/mipmap-xhdpi/ic_launcher.png
             convert app_logo_source.png -resize 144x144 app/src/main/res/mipmap-xxhdpi/ic_launcher.png
             convert app_logo_source.png -resize 192x192 app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-            echo "App logo structural scaling completed successfully."
-          else
-            echo "Warning: app_logo_source.png not found in root directory! Defaulting to existing structural layout."
           fi
+
+      - name: Force-Inject Missing Gradle Wrapper Binaries
+        run: |
+          gradle wrapper --gradle-version 8.2.2
 
       - name: Decrypt and Initialize Production Keystore File
         run: |
           echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/Night_Shadow_Main_Key.jks
-          if [ -f "app/Night_Shadow_Main_Key.jks" ]; then
-            echo "Keystore decrypted successfully."
-          else
-            echo "Keystore initialization failed!"
-            exit 1
-          fi
 
       - name: Grant Build Runner Execution Permissions
         run: chmod +x gradlew
 
       - name: Compile and Sign Release Artifacts (APK & AAB)
+        shell: bash
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
@@ -70,5 +64,5 @@ jobs:
         with:
           name: Color-Changer-Release-Builds
           path: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/bundle/release/*.aab
+            app/build/outputs/apk/release/
+            app/build/outputs/bundle/release/
