@@ -38,10 +38,6 @@ jobs:
             convert app_logo_source.png -resize 192x192 app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
           fi
 
-      - name: Force-Inject Missing Gradle Wrapper Binaries
-        run: |
-          gradle wrapper --gradle-version 8.2.2
-
       - name: Decrypt and Initialize Production Keystore File
         run: |
           echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/Night_Shadow_Main_Key.jks
