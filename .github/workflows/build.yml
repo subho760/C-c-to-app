@@ -62,12 +62,13 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew assembleRelease bundleRelease
+          ./gradlew assembleRelease
+          ./gradlew bundleRelease
 
       - name: Aggregate and Upload Application Packages
         uses: actions/upload-artifact@v4
         with:
           name: Color-Changer-Release-Builds
           path: |
-            app/build/outputs/apk/release/app-release.apk
-            app/build/outputs/bundle/release/app-release.aab
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/bundle/release/*.aab
