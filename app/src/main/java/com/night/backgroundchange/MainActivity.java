@@ -1,4 +1,4 @@
-package com.night.backgroundchange;
+package com.night.backgroundchange;;
 
 import android.app.Activity;
 import android.graphics.Color;
