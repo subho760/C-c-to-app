@@ -38,17 +38,9 @@ jobs:
             convert app_logo_source.png -resize 192x192 app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
           fi
 
-      - name: Download Missing Gradle Wrapper JAR
-        run: |
-          mkdir -p gradle/wrapper
-          curl -L -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.2.2/gradle/wrapper/gradle-wrapper.jar
-
       - name: Decrypt and Initialize Production Keystore File
         run: |
           echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/Night_Shadow_Main_Key.jks
-
-      - name: Grant Build Runner Execution Permissions
-        run: chmod +x gradlew
 
       - name: Compile and Sign Release Artifacts (APK & AAB)
         shell: bash
@@ -57,8 +49,8 @@ jobs:
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
-          ./gradlew assembleRelease
-          ./gradlew bundleRelease
+          gradle assembleRelease
+          gradle bundleRelease
 
       - name: Aggregate and Upload Application Packages
         uses: actions/upload-artifact@v4
