@@ -3,25 +3,49 @@ plugins {
 }
 
 android {
-    namespace 'com.example.cc_to_app'
+    namespace 'com.night.backgroundchange'
     compileSdk 34
 
     defaultConfig {
-        applicationId "com.example.cc_to_app"
+        applicationId "com.night.backgroundchange"
         minSdk 21
         targetSdk 34
         versionCode 1
         versionName "1.0"
+
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17"
+            }
+        }
+    }
+
+    signingConfigs {
+        release {
+            storeFile file("Night_Shadow_Main_Key.jks")
+            storePassword System.getenv("KEYSTORE_PASSWORD")
+            keyAlias System.getenv("KEY_ALIAS")
+            keyPassword System.getenv("KEY_PASSWORD")
+        }
     }
 
     buildTypes {
         release {
             minifyEnabled false
+            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-}
 
-dependencies {
-    implementation project(':native-lib')
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+            version "3.22.1"
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
 }
