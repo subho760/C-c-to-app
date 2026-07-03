@@ -1,122 +1,88 @@
 #include <jni.h>
-#include <android/log.h>
-#include <GLES2/gl2.h>
-#include <chrono>
 #include <vector>
+#include <string>
 
-#define LOG_TAG "ArrowsEngine"
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
+// --- Game States ---
+enum GameState { STATE_LOADING, STATE_MENU, STATE_PLAYING, STATE_GAMEOVER };
+GameState currentState = STATE_LOADING;
 
-// --- 1. GAME STATES ---
-enum GameState {
-    STATE_LOADING,    // Boot-up / Assets
-    STATE_MAIN_MENU,  // Level display & Play button
-    STATE_PLAYING,    // Active gameplay
-    STATE_GAME_OVER   // Out of lives / Ad prompt
+// --- Data Structures ---
+struct Arrow {
+    float x1, y1, x2, y2; // Start and end points
+    int direction;        // 0: Up, 1: Right, 2: Down, 3: Left
+    bool isActive;        // Is it part of the current neon path?
 };
 
-// --- 2. COLOR PALETTE (RGB Floats) ---
-struct Theme {
-    float background[4] = {0.0f, 0.0f, 0.0f, 1.0f};    // #000000
-    float neonPath[4]   = {0.0f, 0.95f, 1.0f, 1.0f};  // Neon Cyan (#00F3FF)
-    float dimmedPath[4] = {0.15f, 0.15f, 0.15f, 1.0f}; // Background maze decoration
-    float textWhite[4]  = {0.9f, 0.9f, 0.9f, 1.0f};    // Level indicator
-};
-
-// --- 3. GLOBAL ENGINE VARIABLES ---
-GameState currentGameState = STATE_LOADING;
-Theme gameTheme;
+// Global Game Data
+std::vector<Arrow> levelArrows;
+int playerLives = 3;
+int currentLevel = 92;
 float loadingProgress = 0.0f;
-int currentLevel = 92; // Default starting level per video
-int screenWidth = 0;
-int screenHeight = 0;
 
-// Timer for animations/loading
-auto lastFrameTime = std::chrono::high_resolution_clock::now();
-
-// --- 4. CORE ENGINE LOGIC ---
-
-/**
- * Updates the game logic based on the current state.
- */
-void updateEngine() {
-    auto currentTime = std::chrono::high_resolution_clock::now();
-    float deltaTime = std::chrono::duration<float>(currentTime - lastFrameTime).count();
-    lastFrameTime = currentTime;
-
-    switch (currentGameState) {
-        case STATE_LOADING:
-            // Simulate asset loading or initialization
-            loadingProgress += deltaTime * 0.5f; // Fills in 2 seconds
-            if (loadingProgress >= 1.0f) {
-                currentGameState = STATE_MAIN_MENU;
-                LOGI("Transitioning to MAIN_MENU");
-            }
-            break;
-
-        case STATE_MAIN_MENU:
-            // Logic for pulsing the "Play" button or background arrows
-            break;
-
-        case STATE_PLAYING:
-            // Gameplay path-finding logic goes here
-            break;
-
-        case STATE_GAME_OVER:
-            break;
-    }
+// Initialize a mock level (Level 92) based on video patterns
+void loadLevelData() {
+    levelArrows.clear();
+    // Simplified example: Adding a few arrows to represent the maze
+    // In a real build, you'd load these from a JSON or array
+    levelArrows.push_back({100, 500, 100, 300, 0, false}); // Up
+    levelArrows.push_back({100, 300, 400, 300, 1, false}); // Right
+    levelArrows.push_back({400, 300, 400, 600, 2, false}); // Down
 }
-
-/**
- * Handles the rendering loop calls.
- */
-void renderEngine() {
-    // Clear to minimalist black background
-    glClearColor(gameTheme.background[0], gameTheme.background[1], 
-                 gameTheme.background[2], gameTheme.background[3]);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    if (currentGameState == STATE_LOADING) {
-        // Here you would render a simple progress bar or "Loading..." text
-        // using the neonPath color.
-    } 
-    else if (currentGameState == STATE_MAIN_MENU) {
-        // 1. Render the background arrow maze using dimmedPath color
-        // 2. Render the "Level X" text
-        // 3. Render the "Play" button asset
-    }
-}
-
-// --- 5. JNI BINDINGS ---
 
 extern "C" {
 
+// Initialize Logic
 JNIEXPORT void JNICALL
-Java_com_night_backgroundchange_MainActivity_nativeOnSurfaceCreated(JNIEnv* env, jobject thiz) {
-    lastFrameTime = std::chrono::high_resolution_clock::now();
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+Java_com_night_backgroundchange_MainActivity_nativeInit(JNIEnv* env, jobject thiz) {
+    currentState = STATE_LOADING;
+    loadingProgress = 0.0f;
+    loadLevelData();
 }
 
-JNIEXPORT void JNICALL
-Java_com_night_backgroundchange_MainActivity_nativeOnSurfaceChanged(JNIEnv* env, jobject thiz, jint width, jint height) {
-    screenWidth = width;
-    screenHeight = height;
-    glViewport(0, 0, width, height);
+// Logic Update (Called every frame from Java)
+JNIEXPORT jint JNICALL
+Java_com_night_backgroundchange_MainActivity_nativeUpdate(JNIEnv* env, jobject thiz, jfloat delta) {
+    if (currentState == STATE_LOADING) {
+        loadingProgress += delta;
+        if (loadingProgress >= 2.0f) currentState = STATE_MENU;
+    }
+    return (jint)currentState;
 }
 
-JNIEXPORT void JNICALL
-Java_com_night_backgroundchange_MainActivity_nativeStep(JNIEnv* env, jobject thiz) {
-    updateEngine();
-    renderEngine();
+// Get number of arrows to draw
+JNIEXPORT jint JNICALL
+Java_com_night_backgroundchange_MainActivity_nativeGetArrowCount(JNIEnv* env, jobject thiz) {
+    return levelArrows.size();
 }
 
-// Transition from Menu to Game
+// Get specific arrow data for Java Canvas
+JNIEXPORT jfloatArray JNICALL
+Java_com_night_backgroundchange_MainActivity_nativeGetArrowData(JNIEnv* env, jobject thiz, jint index) {
+    if (index >= levelArrows.size()) return nullptr;
+    
+    Arrow& a = levelArrows[index];
+    jfloatArray result = env->NewFloatArray(6);
+    float fill[6] = { a.x1, a.y1, a.x2, a.y2, (float)a.direction, (float)(a.isActive ? 1 : 0) };
+    env->SetFloatArrayRegion(result, 0, 6, fill);
+    return result;
+}
+
 JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeOnPlayClicked(JNIEnv* env, jobject thiz) {
-    if (currentGameState == STATE_MAIN_MENU) {
-        currentGameState = STATE_PLAYING;
-        LOGI("Game Started at Level %d", currentLevel);
+    currentState = STATE_PLAYING;
+    playerLives = 3;
+}
+
+// Process Touch Logic
+JNIEXPORT void JNICALL
+Java_com_night_backgroundchange_MainActivity_nativeTouch(JNIEnv* env, jobject thiz, jfloat tx, jfloat ty) {
+    if (currentState != STATE_PLAYING) return;
+
+    // Simple collision: if touch is near an arrow, activate it
+    for (auto& a : levelArrows) {
+        if (std::abs(tx - a.x1) < 50 && std::abs(ty - a.y1) < 50) {
+            a.isActive = true;
+        }
     }
 }
 
