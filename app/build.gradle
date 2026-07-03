@@ -13,14 +13,11 @@ android {
         versionCode 1
         versionName "1.0"
 
-        testInstrumentationRunner "android.support.test.runner.AndroidJUnitRunner"
-        
         ndk {
             abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
         }
     }
 
-    // 🚀 This explicitly connects your CMakeLists config to build the .so library
     externalNativeBuild {
         cmake {
             path file("src/main/Cpp/CMakeLists.txt")
@@ -37,7 +34,5 @@ android {
 }
 
 dependencies {
-    // Basic structural dependencies
-    implementation 'com.android.support:appcompat-v7:28.0.0'
-    implementation 'com.android.support.constraint:constraint-layout:2.0.4'
+    // Keep this block completely clean to prevent Gradle 9 configuration conflicts
 }
