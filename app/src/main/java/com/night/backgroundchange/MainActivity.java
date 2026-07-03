@@ -15,7 +15,7 @@ public class MainActivity extends Activity {
     // Native JNI Methods
     public native int getNativeGameState();
     public native void setNativeGameState(int state);
-    public native jint getNativeLives();
+    public native int getNativeLives();
     public native void updateNativeGame();
     public native void handleNativeTouch(float x, float y);
     public native float getNativePlayerX();
