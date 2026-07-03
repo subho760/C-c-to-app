@@ -28,13 +28,23 @@ public class MainActivity extends Activity {
     private static String initError = null;
 
     static {
-        try {
-            // If this name doesn't match CMakeLists.txt, it will throw an error here
-            System.loadLibrary("C-c-to-app"); 
-        } catch (UnsatisfiedLinkError e) {
-            initError = "Library Load Failed: " + e.getMessage();
-        } catch (Exception e) {
-            initError = "Error: " + e.getMessage();
+        // Smart loader loop to check all possible names your wrapper template might use
+        String[] possibleLibraries = {"backgroundchange", "native-lib", "C-c-to-app", "main"};
+        boolean loaded = false;
+        StringBuilder log = new StringBuilder();
+
+        for (String lib : possibleLibraries) {
+            try {
+                System.loadLibrary(lib);
+                loaded = true;
+                break; // Found it! Stop searching.
+            } catch (UnsatisfiedLinkError e) {
+                log.append(lib).append(" failed; ");
+            }
+        }
+
+        if (!loaded) {
+            initError = "Library Load Failed. Checked names: " + log.toString();
         }
     }
 
@@ -42,13 +52,13 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // If the library failed to load, show the error text on screen instead of crashing!
+        // If all library names failed to load, show the debug error screen
         if (initError != null) {
             TextView errorView = new TextView(this);
             errorView.setText(initError);
             errorView.setTextColor(Color.RED);
-            errorView.setTextSize(18);
-            errorView.setPadding(20, 50, 20, 20);
+            errorView.setTextSize(16);
+            errorView.setPadding(30, 50, 30, 30);
             setContentView(errorView);
             return;
         }
@@ -57,22 +67,23 @@ public class MainActivity extends Activity {
             gameView = new GameView(this);
             setContentView(gameView);
 
+            // 60 FPS Engine Game Loop
             gameHandler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
                     try {
                         if (getNativeGameState() == 0) {
                             loadingTicks++;
-                            if (loadingTicks > 100) { 
+                            if (loadingTicks > 60) { // Transition to menu after ~1 second
                                 setNativeGameState(1); 
                             }
                         } else {
                             updateNativeGame();
                         }
-                        gameView.invalidate(); 
+                        gameView.invalidate(); // Redraw the screen canvas
                         gameHandler.postDelayed(this, 16);
                     } catch (Exception e) {
-                        // Catch any runtime loop crashes
+                        // Prevent thread crash loop
                     }
                 }
             }, 16);
@@ -83,6 +94,7 @@ public class MainActivity extends Activity {
         }
     }
 
+    // Canvas graphic drawing engine (No OpenGL crash)
     class GameView extends View {
         private Paint paint = new Paint();
 
@@ -96,40 +108,62 @@ public class MainActivity extends Activity {
             super.onDraw(canvas);
             try {
                 int state = getNativeGameState();
+                
+                // Pure black canvas layout
                 canvas.drawColor(Color.parseColor("#000000"));
 
                 if (state == 0) {
+                    // LOADING SCREEN LAYER
                     paint.setColor(Color.WHITE);
                     paint.setTextSize(60);
-                    canvas.drawText("Loading Engine...", 200, 800, paint);
+                    paint.setTextAlign(Paint.Align.CENTER);
+                    canvas.drawText("LOADING ENGINE...", getWidth() / 2f, getHeight() / 2f, paint);
+                    
                 } else if (state == 1) {
-                    paint.setColor(Color.parseColor("#00F3FF")); 
+                    // MAIN MENU SCREEN LAYER
+                    paint.setColor(Color.parseColor("#00F3FF")); // Neon Cyan
                     paint.setTextSize(80);
-                    canvas.drawText("NEON MAZE GAME", 150, 400, paint);
+                    paint.setTextAlign(Paint.Align.CENTER);
+                    canvas.drawText("NEON MAZE GAME", getWidth() / 2f, getHeight() / 3f, paint);
 
                     paint.setColor(Color.WHITE);
-                    paint.setTextSize(50);
-                    canvas.drawText("TAP ANYWHERE TO PLAY", 200, 800, paint);
+                    paint.setTextSize(45);
+                    canvas.drawText("TAP ANYWHERE TO PLAY", getWidth() / 2f, getHeight() / 1.5f, paint);
+                    
                 } else if (state == 2) {
-                    paint.setColor(Color.parseColor("#39FF14")); 
-                    paint.setStrokeWidth(15);
-                    canvas.drawLine(100, 500, 900, 500, paint); 
+                    // LIVE GAMEPLAY CANVAS LAYER
+                    paint.setColor(Color.parseColor("#39FF14")); // Neon Green Path Track
+                    paint.setStrokeWidth(20);
+                    paint.setStyle(Paint.Style.STROKE);
+                    // Simple demonstration path lines
+                    canvas.drawLine(100, getHeight() / 2f, getWidth() - 100, getHeight() / 2f, paint);
 
+                    // Draw moving player position requested from native memory
                     float px = getNativePlayerX();
                     float py = getNativePlayerY();
-                    paint.setColor(Color.parseColor("#00F3FF")); 
-                    canvas.drawCircle(px, py, 30, paint);
+                    paint.setStyle(Paint.Style.FILL);
+                    paint.setColor(Color.parseColor("#00F3FF")); // Neon Cyan Moving Player Dot
+                    canvas.drawCircle(px, py, 35, paint);
 
+                    // HUD Display Text
+                    paint.setColor(Color.WHITE);
+                    paint.setTextSize(45);
+                    paint.setTextAlign(Paint.Align.LEFT);
+                    canvas.drawText("LIVES: " + getNativeLives(), 50, 100, paint);
+                    
+                } else if (state == 3) {
+                    // GAME OVER SCREEN LAYER
+                    paint.setColor(Color.RED);
+                    paint.setTextSize(90);
+                    paint.setTextAlign(Paint.Align.CENTER);
+                    canvas.drawText("GAME OVER", getWidth() / 2f, getHeight() / 2f, paint);
+                    
                     paint.setColor(Color.WHITE);
                     paint.setTextSize(40);
-                    canvas.drawText("Lives: " + getNativeLives(), 50, 100, paint);
-                } else if (state == 3) {
-                    paint.setColor(Color.RED);
-                    paint.setTextSize(80);
-                    canvas.drawText("GAME OVER", 250, 500, paint);
+                    canvas.drawText("Tap Screen to Restart", getWidth() / 2f, getHeight() / 1.5f, paint);
                 }
             } catch (Exception e) {
-                // Prevent draw crashes
+                // Keep canvas safe from missing values during transitions
             }
         }
 
@@ -140,7 +174,7 @@ public class MainActivity extends Activity {
                     handleNativeTouch(event.getX(), event.getY());
                 }
             } catch (Exception e) {
-                // Prevent touch crashes
+                // Safely catch anomalies
             }
             return true;
         }
