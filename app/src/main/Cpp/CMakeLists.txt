@@ -13,7 +13,14 @@ find_library(
         log
 )
 
+# Add this inside your CMakeLists.txt to link the graphics libraries
 target_link_libraries(
-        native-lib
-        ${log-lib}
+    # Your native library name (e.g., native-lib or backgroundchange)
+    native-lib 
+
+    # Add these three lines below to link Android graphics support:
+    GLESv2
+    EGL
+    android
+    log
 )
