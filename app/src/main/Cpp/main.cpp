@@ -1,89 +1,104 @@
 #include <jni.h>
 #include <vector>
-#include <string>
+#include <cmath>
 
-// --- Game States ---
+// --- Game Logic Constants ---
 enum GameState { STATE_LOADING, STATE_MENU, STATE_PLAYING, STATE_GAMEOVER };
-GameState currentState = STATE_LOADING;
 
-// --- Data Structures ---
 struct Arrow {
-    float x1, y1, x2, y2; // Start and end points
-    int direction;        // 0: Up, 1: Right, 2: Down, 3: Left
-    bool isActive;        // Is it part of the current neon path?
+    float x, y;    // Normalized (0.0 to 1.0)
+    int direction; // 0:U, 1:R, 2:D, 3:L
+    bool isPath;   // Part of the level solution
+    bool isActive; // Currently lit up
 };
 
-// Global Game Data
-std::vector<Arrow> levelArrows;
-int playerLives = 3;
-int currentLevel = 92;
-float loadingProgress = 0.0f;
+// --- Global State ---
+GameState g_state = STATE_LOADING;
+std::vector<Arrow> g_levelData;
+int g_lives = 3;
+int g_level = 92;
+float g_loadTimer = 0.0f;
 
-// Initialize a mock level (Level 92) based on video patterns
-void loadLevelData() {
-    levelArrows.clear();
-    // Simplified example: Adding a few arrows to represent the maze
-    // In a real build, you'd load these from a JSON or array
-    levelArrows.push_back({100, 500, 100, 300, 0, false}); // Up
-    levelArrows.push_back({100, 300, 400, 300, 1, false}); // Right
-    levelArrows.push_back({400, 300, 400, 600, 2, false}); // Down
+// Create Level 92 Layout (Simplified simulation of video)
+void buildLevel92() {
+    g_levelData.clear();
+    // Create a grid of arrows
+    for (int i = 0; i < 5; ++i) {
+        for (int j = 0; j < 5; ++j) {
+            bool solve = (i == j); // Dummy diagonal logic for example
+            g_levelData.push_back({0.2f + (j * 0.15f), 0.3f + (i * 0.1f), (i + j) % 4, solve, false});
+        }
+    }
 }
 
 extern "C" {
 
-// Initialize Logic
 JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeInit(JNIEnv* env, jobject thiz) {
-    currentState = STATE_LOADING;
-    loadingProgress = 0.0f;
-    loadLevelData();
+    g_state = STATE_LOADING;
+    g_loadTimer = 0.0f;
+    g_lives = 3;
+    buildLevel92();
 }
 
-// Logic Update (Called every frame from Java)
 JNIEXPORT jint JNICALL
-Java_com_night_backgroundchange_MainActivity_nativeUpdate(JNIEnv* env, jobject thiz, jfloat delta) {
-    if (currentState == STATE_LOADING) {
-        loadingProgress += delta;
-        if (loadingProgress >= 2.0f) currentState = STATE_MENU;
+Java_com_night_backgroundchange_MainActivity_nativeUpdate(JNIEnv* env, jobject thiz, jfloat dt) {
+    if (g_state == STATE_LOADING) {
+        g_loadTimer += dt;
+        if (g_loadTimer > 1.5f) g_state = STATE_MENU;
     }
-    return (jint)currentState;
+    return (jint)g_state;
 }
 
-// Get number of arrows to draw
 JNIEXPORT jint JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeGetArrowCount(JNIEnv* env, jobject thiz) {
-    return levelArrows.size();
+    return (jint)g_levelData.size();
 }
 
-// Get specific arrow data for Java Canvas
+// Returns: [x, y, dir, isPath, isActive]
 JNIEXPORT jfloatArray JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeGetArrowData(JNIEnv* env, jobject thiz, jint index) {
-    if (index >= levelArrows.size()) return nullptr;
-    
-    Arrow& a = levelArrows[index];
-    jfloatArray result = env->NewFloatArray(6);
-    float fill[6] = { a.x1, a.y1, a.x2, a.y2, (float)a.direction, (float)(a.isActive ? 1 : 0) };
-    env->SetFloatArrayRegion(result, 0, 6, fill);
+    Arrow& a = g_levelData[index];
+    jfloatArray result = env->NewFloatArray(5);
+    float vals[5] = {a.x, a.y, (float)a.direction, a.isPath ? 1.0f : 0.0f, a.isActive ? 1.0f : 0.0f};
+    env->SetFloatArrayRegion(result, 0, 5, vals);
     return result;
 }
 
 JNIEXPORT void JNICALL
-Java_com_night_backgroundchange_MainActivity_nativeOnPlayClicked(JNIEnv* env, jobject thiz) {
-    currentState = STATE_PLAYING;
-    playerLives = 3;
-}
+Java_com_night_backgroundchange_MainActivity_nativeHandleTouch(JNIEnv* env, jobject thiz, jfloat tx, jfloat ty) {
+    if (g_state != STATE_PLAYING) return;
 
-// Process Touch Logic
-JNIEXPORT void JNICALL
-Java_com_night_backgroundchange_MainActivity_nativeTouch(JNIEnv* env, jobject thiz, jfloat tx, jfloat ty) {
-    if (currentState != STATE_PLAYING) return;
-
-    // Simple collision: if touch is near an arrow, activate it
-    for (auto& a : levelArrows) {
-        if (std::abs(tx - a.x1) < 50 && std::abs(ty - a.y1) < 50) {
-            a.isActive = true;
+    for (auto& a : g_levelData) {
+        float dx = a.x - tx;
+        float dy = a.y - ty;
+        if (std::sqrt(dx*dx + dy*dy) < 0.05f) {
+            if (a.isPath) {
+                a.isActive = true;
+            } else {
+                g_lives--;
+                if (g_lives <= 0) {
+                    g_state = STATE_GAMEOVER;
+                    // Trigger Ad Callback in Java
+                    jclass cls = env->GetObjectClass(thiz);
+                    jmethodID mid = env->GetMethodID(cls, "onTriggerGameOverAd", "()V");
+                    env->CallVoidMethod(thiz, mid);
+                }
+            }
+            break;
         }
     }
+}
+
+JNIEXPORT void JNICALL
+Java_com_night_backgroundchange_MainActivity_nativeOnPlay(JNIEnv* env, jobject thiz) {
+    g_state = STATE_PLAYING;
+}
+
+JNIEXPORT void JNICALL
+Java_com_night_backgroundchange_MainActivity_nativeAddLives(JNIEnv* env, jobject thiz) {
+    g_lives = 3;
+    g_state = STATE_PLAYING;
 }
 
 } // extern "C"
