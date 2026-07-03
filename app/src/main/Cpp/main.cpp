@@ -34,7 +34,6 @@ Java_com_night_backgroundchange_MainActivity_updateNativeGame(JNIEnv* env, jobje
         g_playerX += (g_targetX - g_playerX) * 0.1f;
         g_playerY += (g_targetY - g_playerY) * 0.1f;
         
-        // Example logic: if lives hit 0, trigger game over
         if (g_playerLives <= 0) {
             g_gameState = 3; // Go to Game Over state
         }
@@ -44,14 +43,11 @@ Java_com_night_backgroundchange_MainActivity_updateNativeGame(JNIEnv* env, jobje
 JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_handleNativeTouch(JNIEnv* env, jobject thiz, jfloat x, jfloat y) {
     if (g_gameState == 1) {
-        // Main Menu: Simple check if they tapped screen center area to play
         g_gameState = 2; // Transition to Playing state
     } else if (g_gameState == 2) {
-        // Update game target destination
         g_targetX = x;
         g_targetY = y;
     } else if (g_gameState == 3) {
-        // Game Over screen tap resets game
         g_playerLives = 3;
         g_playerX = 100.0f;
         g_playerY = 500.0f;
