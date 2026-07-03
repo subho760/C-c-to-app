@@ -28,23 +28,11 @@ public class MainActivity extends Activity {
     private static String initError = null;
 
     static {
-        // Smart loading loop to check the common wrapper library configurations
-        String[] possibleLibraries = {"backgroundchange", "native-lib", "C-c-to-app", "main"};
-        boolean loaded = false;
-        StringBuilder log = new StringBuilder();
-
-        for (String lib : possibleLibraries) {
-            try {
-                System.loadLibrary(lib);
-                loaded = true;
-                break;
-            } catch (UnsatisfiedLinkError e) {
-                log.append(lib).append(" failed; ");
-            }
-        }
-
-        if (!loaded) {
-            initError = "Library Load Failed. Checked names: " + log.toString();
+        try {
+            // Hardcoded explicitly to prevent Gradle packaging artifacts splitting
+            System.loadLibrary("C-c-to-app");
+        } catch (UnsatisfiedLinkError e) {
+            initError = "Library Load Failed: " + e.getMessage();
         }
     }
 
@@ -83,7 +71,7 @@ public class MainActivity extends Activity {
                         gameView.invalidate(); 
                         gameHandler.postDelayed(this, 16);
                     } catch (Exception e) {
-                        // Prevent app closures inside loop ticks
+                        // Prevent thread lock
                     }
                 }
             }, 16);
@@ -94,7 +82,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    // Canvas drawing view engine
+    // Canvas rendering engine layout
     class GameView extends View {
         private Paint paint = new Paint();
 
@@ -127,7 +115,7 @@ public class MainActivity extends Activity {
                     canvas.drawText("TAP ANYWHERE TO PLAY", getWidth() / 2f, getHeight() / 1.5f, paint);
                     
                 } else if (state == 2) {
-                    paint.setColor(Color.parseColor("#39FF14")); // Neon Green Track
+                    paint.setColor(Color.parseColor("#39FF14")); // Neon Green Track Path
                     paint.setStrokeWidth(20);
                     paint.setStyle(Paint.Style.STROKE);
                     canvas.drawLine(100, getHeight() / 2f, getWidth() - 100, getHeight() / 2f, paint);
@@ -135,7 +123,7 @@ public class MainActivity extends Activity {
                     float px = getNativePlayerX();
                     float py = getNativePlayerY();
                     paint.setStyle(Paint.Style.FILL);
-                    paint.setColor(Color.parseColor("#00F3FF")); // Neon Cyan Player Dot
+                    paint.setColor(Color.parseColor("#00F3FF")); // Neon Player Dot
                     canvas.drawCircle(px, py, 35, paint);
 
                     paint.setColor(Color.WHITE);
@@ -154,7 +142,7 @@ public class MainActivity extends Activity {
                     canvas.drawText("Tap Screen to Restart", getWidth() / 2f, getHeight() / 1.5f, paint);
                 }
             } catch (Exception e) {
-                // Safeguard against layout calculations during state switches
+                // Safeguard graphics
             }
         }
 
@@ -165,7 +153,7 @@ public class MainActivity extends Activity {
                     handleNativeTouch(event.getX(), event.getY());
                 }
             } catch (Exception e) {
-                // Ignore empty touch registers
+                // Ignore ghost touches
             }
             return true;
         }
