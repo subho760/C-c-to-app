@@ -2,142 +2,128 @@ package com.night.backgroundchange;
 
 import android.app.Activity;
 import android.content.Context;
-import android.graphics.*;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.os.Bundle;
-import android.view.*;
-import android.widget.*;
+import android.os.Handler;
+import android.view.MotionEvent;
+import android.view.View;
 
 public class MainActivity extends Activity {
-    static { System.loadLibrary("game_logic"); }
+
+    // Native JNI Methods
+    public native int getNativeGameState();
+    public native void setNativeGameState(int state);
+    public native jint getNativeLives();
+    public native void updateNativeGame();
+    public native void handleNativeTouch(float x, float y);
+    public native float getNativePlayerX();
+    public native float getNativePlayerY();
 
     private GameView gameView;
-    private RelativeLayout uiContainer;
-    private Button btnPlay;
-    private TextView txtLevel;
+    private Handler gameHandler = new Handler();
+    private int loadingTicks = 0;
+
+    static {
+        // Ensure this matches the exact name defined in your CMakeLists.txt!
+        System.loadLibrary("C-c-to-app"); 
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        // 1. Root Layout
-        RelativeLayout root = new RelativeLayout(this);
-        root.setBackgroundColor(Color.BLACK);
-
-        // 2. Custom Canvas View
-        gameView = new GameView(this);
-        root.addView(gameView);
-
-        // 3. Simple UI Overlay
-        uiContainer = new RelativeLayout(this);
-        btnPlay = new Button(this);
-        btnPlay.setText("PLAY");
-        btnPlay.setBackgroundColor(Color.parseColor("#00F3FF"));
         
-        RelativeLayout.LayoutParams params = new RelativeLayout.LayoutParams(400, 150);
-        params.addRule(RelativeLayout.CENTER_IN_PARENT);
-        uiContainer.addView(btnPlay, params);
+        // Create the game display dynamically to avoid layout XML configuration crashes
+        gameView = new GameView(this);
+        setContentView(gameView);
 
-        txtLevel = new TextView(this);
-        txtLevel.setText("Level 92");
-        txtLevel.setTextColor(Color.WHITE);
-        txtLevel.setTextSize(24);
-        uiContainer.addView(txtLevel);
-
-        root.addView(uiContainer);
-        setContentView(root);
-
-        btnPlay.setOnClickListener(v -> {
-            nativeOnPlay();
-            uiContainer.setVisibility(View.GONE);
-        });
-
-        nativeInit();
+        // Simple 60FPS Game loop updates
+        gameHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (getNativeGameState() == 0) {
+                    loadingTicks++;
+                    if (loadingTicks > 100) { // Simulate a 1.5 second loading screen
+                        setNativeGameState(1); // Move to Main Menu
+                    }
+                } else {
+                    updateNativeGame();
+                }
+                gameView.invalidate(); // Force screen redraw
+                gameHandler.postDelayed(this, 16);
+            }
+        }, 16);
     }
 
-    // Called from C++ JNI when lives reach 0
-    public void onTriggerGameOverAd() {
-        runOnUiThread(() -> {
-            Toast.makeText(this, "Game Over! Rewarded Ad Loading...", Toast.LENGTH_LONG).show();
-            // Stub for AdMob: rewardedAd.show(..., reward -> { nativeAddLives(); });
-            // For now, auto-revive:
-            nativeAddLives();
-            uiContainer.setVisibility(View.GONE);
-        });
-    }
-
-    // --- Custom Canvas Implementation ---
+    // High Performance custom drawing engine
     class GameView extends View {
-        private Paint neonPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private Paint dimPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private long lastTime = System.currentTimeMillis();
+        private Paint paint = new Paint();
 
         public GameView(Context context) {
             super(context);
-            neonPaint.setColor(Color.parseColor("#00F3FF")); // Neon Cyan
-            neonPaint.setStyle(Paint.Style.STROKE);
-            neonPaint.setStrokeWidth(12);
-            // Simulate Neon Glow
-            neonPaint.setShadowLayer(20, 0, 0, Color.parseColor("#00F3FF"));
-            
-            dimPaint.setColor(Color.parseColor("#333333")); // Dark Grey
-            dimPaint.setStyle(Paint.Style.STROKE);
-            dimPaint.setStrokeWidth(8);
-            
-            setLayerType(LAYER_TYPE_SOFTWARE, null); // Required for shadow effect
+            paint.setAntiAlias(true);
         }
 
         @Override
         protected void onDraw(Canvas canvas) {
-            long now = System.currentTimeMillis();
-            float dt = (now - lastTime) / 1000.0f;
-            lastTime = now;
+            super.onDraw(canvas);
+            int state = getNativeGameState();
 
-            int state = nativeUpdate(dt);
+            // 1. Dark Theme Background
+            canvas.drawColor(Color.parseColor("#000000"));
 
-            if (state == 0) { // LOADING
-                Paint textPaint = new Paint();
-                textPaint.setColor(Color.WHITE);
-                textPaint.setTextSize(60);
-                canvas.drawText("Loading...", getWidth()/3f, getHeight()/2f, textPaint);
-            } else if (state >= 2) { // PLAYING or GAMEOVER
-                drawArrows(canvas);
-            }
+            if (state == 0) {
+                // LOADING SCREEN
+                paint.setColor(Color.WHITE);
+                paint.setTextSize(60);
+                canvas.drawText("Loading Engine...", 200, 800, paint);
+                
+            } else if (state == 1) {
+                // MAIN MENU SCREEN
+                paint.setColor(Color.parseColor("#00F3FF")); // Neon Cyan Title
+                paint.setTextSize(80);
+                canvas.drawText("NEON MAZE GAME", 150, 400, paint);
 
-            invalidate(); // Loop the animation
-        }
+                paint.setColor(Color.WHITE);
+                paint.setTextSize(50);
+                canvas.drawText("TAP ANYWHERE TO PLAY", 200, 800, paint);
+                
+            } else if (state == 2) {
+                // GAMEPLAY MODE
+                paint.setColor(Color.parseColor("#39FF14")); // Neon Green Track Paths
+                paint.setStrokeWidth(15);
+                canvas.drawLine(100, 500, 900, 500, paint); // Static track path example
 
-        private void drawArrows(Canvas canvas) {
-            int count = nativeGetArrowCount();
-            for (int i = 0; i < count; i++) {
-                float[] data = nativeGetArrowData(i); // [x, y, dir, isPath, isActive]
-                float x = data[0] * getWidth();
-                float y = data[1] * getHeight();
-                Paint p = (data[4] == 1.0f) ? neonPaint : dimPaint;
+                // Draw moving player node calculated by C++ layer
+                float px = getNativePlayerX();
+                float py = getNativePlayerY();
+                paint.setColor(Color.parseColor("#00F3FF")); // Neon Cyan Player Orb
+                canvas.drawCircle(px, py, 30, paint);
 
-                // Draw a simple arrow shape
-                canvas.drawCircle(x, y, 15, p);
-                if (data[2] == 0) canvas.drawLine(x, y, x, y - 40, p); // Up
-                if (data[2] == 1) canvas.drawLine(x, y, x + 40, y, p); // Right
-                if (data[2] == 2) canvas.drawLine(x, y, x, y + 40, p); // Down
-                if (data[2] == 3) canvas.drawLine(x, y, x - 40, y, p); // Left
+                // Show HUD Data
+                paint.setColor(Color.WHITE);
+                paint.setTextSize(40);
+                canvas.drawText("Lives: " + getNativeLives(), 50, 100, paint);
+                
+            } else if (state == 3) {
+                // GAME OVER SCREEN
+                paint.setColor(Color.RED);
+                paint.setTextSize(80);
+                canvas.drawText("GAME OVER", 250, 500, paint);
+                
+                paint.setColor(Color.WHITE);
+                paint.setTextSize(40);
+                canvas.drawText("Tap to Retry (Ad Placement Stub)", 150, 800, paint);
             }
         }
 
         @Override
         public boolean onTouchEvent(MotionEvent event) {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                nativeHandleTouch(event.getX() / getWidth(), event.getY() / getHeight());
+            if (event.getAction() == MotionEvent.ACTION_DOWN || event.getAction() == MotionEvent.ACTION_MOVE) {
+                handleNativeTouch(event.getX(), event.getY());
             }
             return true;
         }
     }
-
-    // --- Native JNI Interface ---
-    public native void nativeInit();
-    public native int nativeUpdate(float dt);
-    public native int nativeGetArrowCount();
-    public native float[] nativeGetArrowData(int index);
-    public native void nativeHandleTouch(float tx, float ty);
-    public native void nativeOnPlay();
-    public native void nativeAddLives();
 }
