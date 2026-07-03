@@ -1,108 +1,109 @@
 package com.night.backgroundchange;
 
 import android.app.Activity;
-import android.opengl.GLSurfaceView;
+import android.content.Context;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.Button;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
-import android.widget.Toast;
-import javax.microedition.khronos.egl.EGLConfig;
-import javax.microedition.khronos.opengles.GL10;
 
-public class MainActivity extends Activity implements GLSurfaceView.Renderer {
+public class MainActivity extends Activity {
 
-    static {
-        System.loadLibrary("game_logic");
-    }
+    static { System.loadLibrary("game_logic"); }
 
-    private GLSurfaceView glSurfaceView;
-    private RelativeLayout uiOverlay;
-    private Button btnPlay;
-    private TextView txtLevel;
-    private View loadingScreen;
+    private GameView gameView;
+    private RelativeLayout menuLayout;
+    private TextView loadingText;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-
-        // 1. Setup SurfaceView for C++ Rendering
-        glSurfaceView = new GLSurfaceView(this);
-        glSurfaceView.setEGLContextClientVersion(2);
-        glSurfaceView.setRenderer(this);
         
-        RelativeLayout root = findViewById(R.id.main_layout);
-        root.addView(glSurfaceView, 0);
+        // Setup Root Layout
+        RelativeLayout root = new RelativeLayout(this);
+        root.setBackgroundColor(Color.BLACK);
 
-        // 2. UI Elements (Matching Feature Removals)
-        uiOverlay = findViewById(R.id.ui_overlay);
-        btnPlay = findViewById(R.id.btnPlay);
-        txtLevel = findViewById(R.id.txtLevel);
-        loadingScreen = findViewById(R.id.loading_screen);
+        // 1. The Game Canvas
+        gameView = new GameView(this);
+        root.addView(gameView);
 
+        // 2. Main Menu Overlay
+        menuLayout = new RelativeLayout(this);
+        Button btnPlay = new Button(this);
+        btnPlay.setText("PLAY");
         btnPlay.setOnClickListener(v -> {
             nativeOnPlayClicked();
-            uiOverlay.setVisibility(View.GONE);
+            menuLayout.setVisibility(View.GONE);
         });
+        menuLayout.addView(btnPlay);
+        root.addView(menuLayout);
 
-        nativeInitAssetManager(getAssets());
+        // 3. Loading Text
+        loadingText = new TextView(this);
+        loadingText.setText("Loading...");
+        loadingText.setTextColor(Color.CYAN);
+        root.addView(loadingText);
+
+        setContentView(root);
+        nativeInit();
     }
 
-    // --- JNI Callbacks from C++ ---
+    // Custom View to draw what C++ calculates
+    class GameView extends View {
+        Paint neonPaint = new Paint();
+        Paint dimmedPaint = new Paint();
 
-    // Triggered when hearts = 0 at 0:29 mark
-    public void triggerRewardedAd() {
-        runOnUiThread(() -> {
-            Toast.makeText(this, "Ad Placeholder: Rewarded Video Loading...", Toast.LENGTH_SHORT).show();
-            // AdMob logic here:
-            // if (rewardedAd.isLoaded()) { rewardedAd.show(activity, rewardItem -> { nativeGrantLives(); }); }
+        public GameView(Context context) {
+            super(context);
+            neonPaint.setColor(Color.parseColor("#00F3FF")); // Neon Cyan
+            neonPaint.setStrokeWidth(8f);
+            neonPaint.setStyle(Paint.Style.STROKE);
             
-            // Mocking success for demo:
-            nativeGrantLives();
-        });
-    }
-
-    public void onGameLoadingComplete() {
-        runOnUiThread(() -> {
-            loadingScreen.setVisibility(View.GONE);
-            uiOverlay.setVisibility(View.VISIBLE);
-        });
-    }
-
-    // --- SurfaceView Overrides ---
-
-    @Override
-    public void onSurfaceCreated(GL10 gl, EGLConfig config) {
-        nativeOnSurfaceCreated();
-    }
-
-    @Override
-    public void onSurfaceChanged(GL10 gl, int width, int height) {
-        nativeOnSurfaceChanged(width, height);
-    }
-
-    @Override
-    public void onDrawFrame(GL10 gl) {
-        nativeStep();
-    }
-
-    @Override
-    public boolean onTouchEvent(MotionEvent event) {
-        if (event.getAction() == MotionEvent.ACTION_DOWN) {
-            nativeOnTouch(event.getX(), event.getY());
+            dimmedPaint.setColor(Color.parseColor("#333333")); // Dimmed Grey
+            dimmedPaint.setStrokeWidth(5f);
         }
-        return true;
+
+        @Override
+        protected void onDraw(Canvas canvas) {
+            int state = nativeUpdate(0.016f); // Approx 60fps delta
+
+            if (state == 0) { // LOADING
+                loadingText.setVisibility(View.VISIBLE);
+            } else {
+                loadingText.setVisibility(View.GONE);
+                
+                // Draw Arrows from C++ Data
+                int count = nativeGetArrowCount();
+                for (int i = 0; i < count; i++) {
+                    float[] data = nativeGetArrowData(i);
+                    // data: [x1, y1, x2, y2, dir, isActive]
+                    Paint p = (data[5] == 1.0f) ? neonPaint : dimmedPaint;
+                    canvas.drawLine(data[0], data[1], data[2], data[3], p);
+                    // (Logic to draw arrow head based on dir would go here)
+                }
+            }
+            invalidate(); // Force redraw
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent event) {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                nativeTouch(event.getX(), event.getY());
+            }
+            return true;
+        }
     }
 
-    // --- Native Method Declarations ---
-    public native void nativeInitAssetManager(Object assetManager);
-    public native void nativeOnSurfaceCreated();
-    public native void nativeOnSurfaceChanged(int width, int height);
-    public native void nativeStep();
-    public native void nativeOnTouch(float x, float y);
+    // Native Definitions
+    public native void nativeInit();
+    public native int nativeUpdate(float delta);
+    public native int nativeGetArrowCount();
+    public native float[] nativeGetArrowData(int index);
     public native void nativeOnPlayClicked();
-    public native void nativeGrantLives();
+    public native void nativeTouch(float x, float y);
 }
