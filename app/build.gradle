@@ -18,6 +18,16 @@ android {
         }
     }
 
+    // 🔐 This block reads your workflow secrets to sign the APK
+    signingConfigs {
+        release {
+            storeFile file("Night_Shadow_Main_Key.jks")
+            storePassword System.getenv("KEYSTORE_PASSWORD")
+            keyAlias System.getenv("KEY_ALIAS")
+            keyPassword System.getenv("KEY_PASSWORD")
+        }
+    }
+
     externalNativeBuild {
         cmake {
             path file("src/main/Cpp/CMakeLists.txt")
@@ -28,11 +38,13 @@ android {
     buildTypes {
         release {
             minifyEnabled false
+            // 🚀 Tells Gradle to apply the signing key to your release build
+            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }
 
 dependencies {
-    // Keep this block completely clean to prevent Gradle 9 configuration conflicts
+    // Kept clean to prevent Gradle 9 dependency mutation conflicts
 }
