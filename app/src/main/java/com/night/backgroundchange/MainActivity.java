@@ -7,7 +7,9 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
-import android.graphics.drawable.ColorDrawable;
+import android.graphics.RectF;
+import android.graphics.Typeface;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.view.Gravity;
@@ -21,7 +23,7 @@ import android.widget.TextView;
 
 public class MainActivity extends Activity {
 
-    // Native JNI Game Engine Layer
+    // Native JNI Game Engine Linkers
     public native int getNativeGameState();
     public native void setNativeGameState(int state);
     public native int getNativeLives();
@@ -62,29 +64,29 @@ public class MainActivity extends Activity {
         gameView = new GameView(this);
         setContentView(gameView);
 
-        // Core 60 FPS Engine Loop
+        // Core Game Loop
         gameHandler.postDelayed(new Runnable() {
             @Override
             public void run() {
                 try {
                     int state = getNativeGameState();
-                    if (state == 2) { // Playing
+                    if (state == 2) { 
                         updateNativeGame();
                         if (getNativeLives() <= 0 && !isDialogShowing) {
-                            showAdDialog();
+                            showExactAdDialog();
                         }
                     }
                     gameView.invalidate();
                     gameHandler.postDelayed(this, 16);
                 } catch (Exception e) {
-                    // Prevent context frame drops
+                    // Smooth continuation
                 }
             }
         }, 16);
     }
 
-    // 🎬 Shows the "Watch an ad to refill your lives" Popup Dialog from your video
-    private void showAdDialog() {
+    // 🎬 Rebuilds the precise pop-up layout from your screenshot
+    private void showExactAdDialog() {
         isDialogShowing = true;
         runOnUiThread(new Runnable() {
             @Override
@@ -92,40 +94,60 @@ public class MainActivity extends Activity {
                 adDialog = new Dialog(MainActivity.this);
                 adDialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
                 
-                // Custom layout matching the video UI
+                // Outer Dialog Container
                 LinearLayout layout = new LinearLayout(MainActivity.this);
                 layout.setOrientation(LinearLayout.VERTICAL);
-                layout.setBackgroundColor(Color.parseColor("#1E1F22"));
-                layout.setPadding(50, 50, 50, 50);
-                layout.setGravity(Gravity.CENTER);
+                layout.setPadding(60, 65, 60, 65);
+                layout.setGravity(Gravity.CENTER_HORIZONTAL);
+                
+                // Matches the deep charcoal background and rounded edges of your original game box
+                GradientDrawable dialogBg = new GradientDrawable();
+                dialogBg.setColor(Color.parseColor("#212124")); 
+                dialogBg.setCornerRadius(24f); 
+                layout.setBackground(dialogBg);
 
+                // Title Header
                 TextView title = new TextView(MainActivity.this);
                 title.setText("Continue?");
                 title.setTextColor(Color.WHITE);
-                title.setTextSize(24);
+                title.setTextSize(22);
+                title.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
                 title.setGravity(Gravity.CENTER);
                 layout.addView(title);
 
-                // Heart row simulation
+                // Lives Indicator Section
                 TextView hearts = new TextView(MainActivity.this);
                 hearts.setText("❤️ ❤️ ❤️");
-                hearts.setTextSize(30);
+                hearts.setTextSize(26);
                 hearts.setGravity(Gravity.CENTER);
-                hearts.setPadding(0, 20, 0, 20);
+                hearts.setPadding(0, 25, 0, 25);
                 layout.addView(hearts);
 
+                // Subtitle Instructions
                 TextView message = new TextView(MainActivity.this);
                 message.setText("Watch an ad to refill your lives\nand keep playing!");
-                message.setTextColor(Color.GRAY);
+                message.setTextColor(Color.parseColor("#8E8E93"));
                 message.setTextSize(14);
                 message.setGravity(Gravity.CENTER);
-                message.setPadding(0, 0, 0, 40);
+                message.setLineSpacing(4f, 1f);
+                message.setPadding(0, 0, 0, 45);
                 layout.addView(message);
 
+                // Action Call Button
                 Button adButton = new Button(MainActivity.this);
-                adButton.setText("📺 Add More Lives");
-                adButton.setBackgroundColor(Color.parseColor("#3F51B5"));
+                adButton.setText("📺 ADD MORE LIVES");
                 adButton.setTextColor(Color.WHITE);
+                adButton.setTextSize(14);
+                adButton.setTypeface(Typeface.DEFAULT_BOLD);
+                
+                GradientDrawable btnBg = new GradientDrawable();
+                btnBg.setColor(Color.parseColor("#3F51B5")); // Exact premium accent tint
+                btnBg.setCornerRadius(8f);
+                adButton.setBackground(btnBg);
+                
+                LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, 130);
+                adButton.setLayoutParams(btnParams);
                 adButton.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
@@ -136,11 +158,18 @@ public class MainActivity extends Activity {
                 });
                 layout.addView(adButton);
 
+                // Decline/Reset Option Button
                 Button restartButton = new Button(MainActivity.this);
-                restartButton.setText("Restart");
+                restartButton.setText("RESTART");
+                restartButton.setTextColor(Color.parseColor("#B0B0B5"));
+                restartButton.setTextSize(13);
+                restartButton.setTypeface(Typeface.DEFAULT_BOLD);
                 restartButton.setBackgroundColor(Color.TRANSPARENT);
-                restartButton.setTextColor(Color.WHITE);
-                restartButton.setPadding(0, 30, 0, 0);
+                
+                LinearLayout.LayoutParams restartParams = new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                restartParams.setMargins(0, 30, 0, 0);
+                restartButton.setLayoutParams(restartParams);
                 restartButton.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
@@ -158,7 +187,7 @@ public class MainActivity extends Activity {
                 if (window != null) {
                     window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
                     WindowManager.LayoutParams lp = window.getAttributes();
-                    lp.dimAmount = 0.7f;
+                    lp.dimAmount = 0.65f; // Perfect background dimming intensity
                     window.setAttributes(lp);
                 }
                 adDialog.show();
@@ -174,14 +203,14 @@ public class MainActivity extends Activity {
             super(context);
             paint.setAntiAlias(true);
             
-            // Define standard vector path shape for rendering maze arrows
-            arrowPath.moveTo(0, -15);
-            arrowPath.lineTo(15, 5);
-            arrowPath.lineTo(5, 5);
-            arrowPath.lineTo(5, 20);
-            arrowPath.lineTo(-5, 20);
-            arrowPath.lineTo(-5, 5);
-            arrowPath.lineTo(-15, 5);
+            // Constructs the sharp line paths for drawing original arrows natively
+            arrowPath.moveTo(0, -18);
+            arrowPath.lineTo(14, -2);
+            arrowPath.lineTo(5, -2);
+            arrowPath.lineTo(5, 18);
+            arrowPath.lineTo(-5, 18);
+            arrowPath.lineTo(-5, -2);
+            arrowPath.lineTo(-14, -2);
             arrowPath.close();
         }
 
@@ -190,64 +219,53 @@ public class MainActivity extends Activity {
             super.onDraw(canvas);
             int state = getNativeGameState();
             
-            // Deep sleek background color matching your gameplay video
-            canvas.drawColor(Color.parseColor("#16171B"));
+            // Sleek flat graphite theme canvas background
+            canvas.drawColor(Color.parseColor("#121316")); 
 
-            if (state == 0) { // Splash Screen
-                paint.setColor(Color.WHITE);
-                paint.setTextSize(50);
-                paint.setTextAlign(Paint.Align.CENTER);
-                canvas.drawText("LOADING...", getWidth() / 2f, getHeight() / 2f, paint);
+            if (state == 0) {
                 setNativeGameState(1);
-                
-            } else if (state == 1) { // Main Title Screen
+            } else if (state == 1) {
+                // Direct Auto-Skip Splash Configuration to enter Level Interface smoothly
+                setNativeGameState(2);
+            } else {
+                // Draw Title Text Trackers
                 paint.setColor(Color.WHITE);
-                paint.setTextSize(60);
+                paint.setTextSize(55);
                 paint.setTextAlign(Paint.Align.CENTER);
-                canvas.drawText("▲ rrows", getWidth() / 2f, getHeight() / 3f, paint);
-                
-                paint.setColor(Color.parseColor("#3F51B5"));
-                canvas.drawRect(getWidth()/4f, getHeight()/2f, getWidth()*3/4f, getHeight()/2f + 100, paint);
-                paint.setColor(Color.WHITE);
-                paint.setTextSize(40);
-                canvas.drawText("Play", getWidth() / 2f, getHeight() / 2f + 65, paint);
-                
-            } else { // Active Maze Mode (State 2)
-                // Draw Header Title Info
-                paint.setColor(Color.WHITE);
-                paint.setTextSize(45);
-                paint.setTextAlign(Paint.Align.CENTER);
-                canvas.drawText("▲rrows", getWidth() / 2f, 100, paint);
+                paint.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+                canvas.drawText("▲ rrows", getWidth() / 2f, 130, paint);
                 
                 paint.setColor(Color.parseColor("#5C6BC0"));
-                paint.setTextSize(35);
-                canvas.drawText("Level " + getNativeLevel(), getWidth() / 2f, 160, paint);
+                paint.setTextSize(38);
+                paint.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+                canvas.drawText("Level " + getNativeLevel(), getWidth() / 2f, 195, paint);
 
-                // Build & Draw the Grid Arrow Maze System
+                // Dynamic Arrow Maze Vector Matrix Field
                 int rows = 6;
                 int cols = 4;
                 float spacingX = getWidth() / (cols + 1f);
-                float spacingY = (getHeight() - 300f) / (rows + 1f);
+                float spacingY = (getHeight() - 400f) / (rows + 1f);
 
                 for (int r = 1; r <= rows; r++) {
                     for (int c = 1; c <= cols; c++) {
                         float ax = c * spacingX;
-                        float ay = 200 + r * spacingY;
+                        float ay = 260 + r * spacingY;
                         
                         canvas.save();
                         canvas.translate(ax, ay);
                         
-                        // Rotational matrix pattern simulation
+                        // Rotational alignments
                         float rotation = (r % 2 == 0) ? (c * 90f) : (c * -90f);
                         canvas.rotate(rotation);
                         
                         paint.setStyle(Paint.Style.STROKE);
-                        paint.setStrokeWidth(4);
-                        // Danger highlight track color toggle
-                        if (getNativeLives() < 3 && r == 4) {
-                            paint.setColor(Color.parseColor("#E57373")); // Soft Crimson Alert
+                        paint.setStrokeWidth(4.5f);
+                        
+                        // Error impact track highlighting color logic matching your screen capture
+                        if (getNativeLives() < 3 && r == 4 && c == 1) {
+                            paint.setColor(Color.parseColor("#7F3A3A")); // Muted warning indicator
                         } else {
-                            paint.setColor(Color.parseColor("#3A3C45"));
+                            paint.setColor(Color.parseColor("#28292E")); // Dark variant tracks
                         }
                         
                         canvas.drawPath(arrowPath, paint);
@@ -255,23 +273,24 @@ public class MainActivity extends Activity {
                     }
                 }
 
-                // Render the Player Dot element
+                // Render Active Player Tracking Dot Elements
                 float px = getNativePlayerX();
                 float py = getNativePlayerY();
-                if (px == 0) { px = getWidth() / 2f; py = getHeight() - 200f; }
+                if (px == 0) { 
+                    px = getWidth() / 2f; 
+                    py = getHeight() - 180f; 
+                }
 
                 paint.setStyle(Paint.Style.FILL);
-                paint.setColor(Color.parseColor("#4DD0E1")); // Electric Cyan Player Node
-                canvas.drawCircle(px, py, 30, paint);
+                paint.setColor(Color.parseColor("#3CD0E6")); // Electric Aqua-Teal Node
+                canvas.drawCircle(px, py, 28, paint);
             }
         }
 
         @Override
         public boolean onTouchEvent(MotionEvent event) {
-            if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                if (getNativeGameState() == 1) {
-                    setNativeGameState(2); // Start gameplay direct
-                } else if (getNativeGameState() == 2) {
+            if (event.getAction() == MotionEvent.ACTION_DOWN || event.getAction() == MotionEvent.ACTION_MOVE) {
+                if (getNativeGameState() == 2) {
                     handleNativeTouch(event.getX(), event.getY());
                 }
             }
