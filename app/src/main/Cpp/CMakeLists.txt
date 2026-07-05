@@ -1,18 +1,8 @@
-cmake_minimum_required(VERSION 3.22.1)
-project("C-c-to-app")
+cmake_minimum_required(VERSION 3.10.2)
+project("arrowpuzzle")
 
-add_library(
-        C-c-to-app
-        SHARED
-        main.cpp
-)
+add_library(native-lib SHARED native-lib.cpp)
 
-find_library(
-        log-lib
-        log
-)
+find_library(log-lib log)
 
-target_link_libraries(
-        C-c-to-app
-        ${log-lib}
-)
+target_link_libraries(native-lib ${log-lib})
