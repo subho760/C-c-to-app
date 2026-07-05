@@ -8,14 +8,14 @@ android {
 
     defaultConfig {
         applicationId "com.night.backgroundchange"
-        minSdk 24
+        minSdk 21
         targetSdk 34
         versionCode 1
         versionName "1.0"
 
         externalNativeBuild {
             cmake {
-                cppFlags "-std=c++17"
+                cppFlags ""
             }
         }
     }
@@ -26,21 +26,22 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
-    
+
     externalNativeBuild {
         cmake {
-            path file('src/main/cpp/CMakeLists.txt')
-            version '3.22.1'
+            path "src/main/cpp/CMakeLists.txt"
+            version "3.22.1"
         }
     }
 
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 }
 
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
 }
