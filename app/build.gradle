@@ -3,48 +3,44 @@ plugins {
 }
 
 android {
-    namespace "com.night.backgroundchange"
+    namespace 'com.night.backgroundchange'
     compileSdk 34
 
     defaultConfig {
         applicationId "com.night.backgroundchange"
-        minSdk 21
+        minSdk 24
         targetSdk 34
         versionCode 1
         versionName "1.0"
 
-        ndk {
-            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
-        }
-    }
-
-    // 🔐 This block reads your workflow secrets to sign the APK
-    signingConfigs {
-        release {
-            storeFile file("Night_Shadow_Main_Key.jks")
-            storePassword System.getenv("KEYSTORE_PASSWORD")
-            keyAlias System.getenv("KEY_ALIAS")
-            keyPassword System.getenv("KEY_PASSWORD")
-        }
-    }
-
-    externalNativeBuild {
-        cmake {
-            path file("src/main/Cpp/CMakeLists.txt")
-            version "3.22.1"
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17"
+            }
         }
     }
 
     buildTypes {
         release {
             minifyEnabled false
-            // 🚀 Tells Gradle to apply the signing key to your release build
-            signingConfig signingConfigs.release
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+    
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 }
 
 dependencies {
-    // Kept clean to prevent Gradle 9 dependency mutation conflicts
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.9.0'
 }
