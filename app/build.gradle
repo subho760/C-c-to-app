@@ -2,16 +2,6 @@ plugins {
     id 'com.android.application'
 }
 
-// 🚀 THE FIX: This unlocks early-resolved configurations so your build can finish configuring safely
-configurations.configureEach { configuration ->
-    if (configuration.name.contains("CompileClasspath")) {
-        // Safe check to prevent Gradle from hard-locking dependencies mid-run
-        configuration.incoming.beforeResolve { 
-            // Allows safe mutation during initialization
-        }
-    }
-}
-
 android {
     namespace 'com.night.backgroundchange'
     compileSdk 34
