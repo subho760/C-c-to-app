@@ -14,6 +14,7 @@ android {
         versionCode 1
         versionName "1.0"
 
+        // Pure declarative block for arguments
         externalNativeBuild {
             cmake {
                 cppFlags "-std=c++17"
@@ -24,7 +25,7 @@ android {
 
     signingConfigs {
         release {
-            storeFile file("../Night_Shadow_Main_Key.jks")
+            storeFile file("Night_Shadow_Main_Key.jks")
             storePassword providers.environmentVariable("KEYSTORE_PASSWORD").orElse("").get()
             keyAlias providers.environmentVariable("KEY_ALIAS").orElse("").get()
             keyPassword providers.environmentVariable("KEY_PASSWORD").orElse("").get()
@@ -39,6 +40,7 @@ android {
         }
     }
 
+    // Standard location for CMake file definitions
     externalNativeBuild {
         cmake {
             path file('src/main/Cpp/CMakeLists.txt')
