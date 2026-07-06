@@ -12,15 +12,9 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
-
-        externalNativeBuild {
-            cmake {
-                arguments "-DANDROID_STL=c++_shared"
-                cppFlags "-std=c++17"
-            }
-        }
     }
 
+    // 1️⃣ Signing Configurations MUST be defined before Build Types
     signingConfigs {
         release {
             storeFile file("../Night_Shadow_Main_Key.jks")
@@ -34,14 +28,20 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            
+            // Safe to attach now that signingConfigs is completely declared above
             signingConfig signingConfigs.release
         }
     }
     
+    // 2️⃣ Combined Native Build Block placed safely at the bottom to avoid mutating classpaths
     externalNativeBuild {
         cmake {
             path file('src/main/Cpp/CMakeLists.txt')
             version '3.22.1'
+            // Arguments and flags passed to CMake clean and early
+            arguments "-DANDROID_STL=c++_shared"
+            cppFlags "-std=c++17"
         }
     }
 
