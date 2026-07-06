@@ -22,12 +22,13 @@ android {
         }
     }
 
+    // 🚀 FIXED FOR GRADLE 9+: Replaced System.getenv with isolated providers
     signingConfigs {
         release {
             storeFile file("../Night_Shadow_Main_Key.jks")
-            storePassword System.getenv("KEYSTORE_PASSWORD")
-            keyAlias System.getenv("KEY_ALIAS")
-            keyPassword System.getenv("KEY_PASSWORD")
+            storePassword providers.environmentVariable("KEYSTORE_PASSWORD").orElse("").get()
+            keyAlias providers.environmentVariable("KEY_ALIAS").orElse("").get()
+            keyPassword providers.environmentVariable("KEY_PASSWORD").orElse("").get()
         }
     }
 
