@@ -13,6 +13,14 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
+
+        // 1️⃣ Compiler arguments live here safely
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_STL=c++_shared"
+                cppFlags "-std=c++17"
+            }
+        }
     }
 
     signingConfigs {
@@ -32,13 +40,11 @@ android {
         }
     }
 
-    // 🚀 SINGLE UNIFIED NATIVE BLOCK AT ROOT LEVEL FOR GRADLE 9+
+    // 2️⃣ Path references live here at the root level of 'android'
     externalNativeBuild {
         cmake {
             path file('src/main/Cpp/CMakeLists.txt')
             version '3.22.1'
-            arguments "-DANDROID_STL=c++_shared"
-            cppFlags "-std=c++17"
         }
     }
 
