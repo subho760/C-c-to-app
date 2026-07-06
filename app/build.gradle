@@ -5,6 +5,9 @@ plugins {
 android {
     namespace 'com.night.backgroundchange'
     compileSdk 34
+    
+    // 1️⃣ ADD THIS LINE HERE to force Gradle to target the correct NDK version
+    ndkVersion "25.1.8937393"
 
     defaultConfig {
         applicationId "com.night.backgroundchange"
@@ -13,7 +16,6 @@ android {
         versionCode 1
         versionName "1.0"
 
-        // 1️⃣ MOVE NATIVE COMPILER ARGUMENTS INSIDE DEFAULTCONFIG
         externalNativeBuild {
             cmake {
                 arguments "-DANDROID_STL=c++_shared"
@@ -39,7 +41,6 @@ android {
         }
     }
     
-    // 2️⃣ ONLY THE PATH DETAILS BELONG DOWN HERE
     externalNativeBuild {
         cmake {
             path file('src/main/Cpp/CMakeLists.txt')
