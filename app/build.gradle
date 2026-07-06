@@ -13,14 +13,6 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
-
-        // 1️⃣ Compiler flags belong safely inside defaultConfig
-        externalNativeBuild {
-            cmake {
-                arguments "-DANDROID_STL=c++_shared"
-                cppFlags "-std=c++17"
-            }
-        }
     }
 
     signingConfigs {
@@ -40,19 +32,19 @@ android {
         }
     }
 
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-}
-
-// 2️⃣ Wrap the path definition here to stop Gradle from locking the classpath too early
-project.afterEvaluate {
-    android.externalNativeBuild {
+    // 🚀 SINGLE UNIFIED NATIVE BLOCK AT ROOT LEVEL FOR GRADLE 9+
+    externalNativeBuild {
         cmake {
             path file('src/main/Cpp/CMakeLists.txt')
             version '3.22.1'
+            arguments "-DANDROID_STL=c++_shared"
+            cppFlags "-std=c++17"
         }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
     }
 }
 
