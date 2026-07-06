@@ -13,6 +13,13 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
+
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17"
+                arguments "-DANDROID_STL=c++_shared"
+            }
+        }
     }
 
     signingConfigs {
@@ -32,6 +39,13 @@ android {
         }
     }
 
+    externalNativeBuild {
+        cmake {
+            path file('src/main/Cpp/CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -41,27 +55,4 @@ android {
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
-}
-
-// 🚀 THE FIX: Isolate the CMake registration completely from the initial configuration phase.
-// This prevents AGP 9.x from locking your release compilation classpaths during asset generation.
-project.afterEvaluate {
-    if (project.plugins.hasPlugin('com.android.application')) {
-        android {
-            externalNativeBuild {
-                cmake {
-                    path file('src/main/Cpp/CMakeLists.txt')
-                    version '3.22.1'
-                }
-            }
-            defaultConfig {
-                externalNativeBuild {
-                    cmake {
-                        cppFlags "-std=c++17"
-                        arguments "-DANDROID_STL=c++_shared"
-                    }
-                }
-            }
-        }
-    }
 }
