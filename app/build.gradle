@@ -5,7 +5,6 @@ plugins {
 android {
     namespace 'com.night.backgroundchange'
     compileSdk 34
-    ndkVersion "25.1.8937393"
 
     defaultConfig {
         applicationId "com.night.backgroundchange"
@@ -14,7 +13,9 @@ android {
         versionCode 1
         versionName "1.0"
 
-        // Pure declarative block for arguments
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        // Safe arguments block definition
         externalNativeBuild {
             cmake {
                 cppFlags "-std=c++17"
@@ -26,9 +27,9 @@ android {
     signingConfigs {
         release {
             storeFile file("Night_Shadow_Main_Key.jks")
-            storePassword providers.environmentVariable("KEYSTORE_PASSWORD").orElse("").get()
-            keyAlias providers.environmentVariable("KEY_ALIAS").orElse("").get()
-            keyPassword providers.environmentVariable("KEY_PASSWORD").orElse("").get()
+            storePassword System.getenv("KEYSTORE_PASSWORD")
+            keyAlias System.getenv("KEY_ALIAS")
+            keyPassword System.getenv("KEY_PASSWORD")
         }
     }
 
@@ -40,11 +41,11 @@ android {
         }
     }
 
-    // Standard location for CMake file definitions
+    // Explicit path location mapping blocks
     externalNativeBuild {
         cmake {
-            path file('src/main/Cpp/CMakeLists.txt')
-            version '3.22.1'
+            path file("src/main/Cpp/CMakeLists.txt")
+            version "3.22.1"
         }
     }
 
@@ -57,4 +58,5 @@ android {
 dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.9.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
 }
