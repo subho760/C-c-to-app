@@ -5,8 +5,6 @@ plugins {
 android {
     namespace 'com.night.backgroundchange'
     compileSdk 34
-    
-    // 1️⃣ ADD THIS LINE HERE to force Gradle to target the correct NDK version
     ndkVersion "25.1.8937393"
 
     defaultConfig {
@@ -16,8 +14,11 @@ android {
         versionCode 1
         versionName "1.0"
 
+        // Everything handles neatly inside here so Gradle never locks your configurations early
         externalNativeBuild {
             cmake {
+                path file('src/main/Cpp/CMakeLists.txt')
+                version '3.22.1'
                 arguments "-DANDROID_STL=c++_shared"
                 cppFlags "-std=c++17"
             }
@@ -38,13 +39,6 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
-        }
-    }
-    
-    externalNativeBuild {
-        cmake {
-            path file('src/main/Cpp/CMakeLists.txt')
-            version '3.22.1'
         }
     }
 
