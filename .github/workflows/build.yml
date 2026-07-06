@@ -49,8 +49,7 @@ jobs:
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: |
-        chmod +x gradlew
-        ./gradlew assembleRelease bundleRelease --no-configuration-cache --no-configure-on-demand
+        gradle assembleRelease bundleRelease --no-configuration-cache --no-configure-on-demand
 
     - name: Aggregate and Upload Application Packages
       uses: actions/upload-artifact@v4
