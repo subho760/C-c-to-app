@@ -22,7 +22,6 @@ android {
         }
     }
 
-    // 🚀 FIXED FOR GRADLE 9+: Replaced System.getenv with isolated providers
     signingConfigs {
         release {
             storeFile file("../Night_Shadow_Main_Key.jks")
