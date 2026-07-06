@@ -67,10 +67,6 @@ public:
         board.assign(size * size, NONE);
         int arrowCount = (size * size * (std::min(40 + level, 80))) / 100;
         
-        // Use Reverse Solving to guarantee solvability
-        std::vector<Point> coords;
-        for(int i=0; i<size; ++i) for(int j=0; j<size; ++j) coords.push_back({i, j});
-        
         std::vector<Point> placed;
         int attempts = 0;
         while(placed.size() < arrowCount && attempts < 500) {
@@ -97,7 +93,9 @@ public:
             attempts++;
         }
         
-        if (placed.empty()) generateSolvableBoard(); // Fallback
+        if (placed.empty()) {
+            board[0] = RIGHT; 
+        }
     }
 
     bool canSolve(std::vector<int> tempBoard) {
@@ -110,7 +108,6 @@ public:
                     int dir = tempBoard[idx];
                     if(dir == NONE) continue;
                     
-                    // Internal check
                     int dx=0, dy=0;
                     if (dir == UP) dy = -1; else if (dir == RIGHT) dx = 1;
                     else if (dir == DOWN) dy = 1; else if (dir == LEFT) dx = -1;
