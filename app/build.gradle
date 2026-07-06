@@ -13,7 +13,6 @@ android {
         versionCode 1
         versionName "1.0"
 
-        // This ensures the C++17 configuration standard applies everywhere
         externalNativeBuild {
             cmake {
                 arguments "-DANDROID_STL=c++_shared"
@@ -39,28 +38,12 @@ android {
         }
     }
     
-            // 1️⃣ Keep your existing buildTypes and signingConfigs exactly as they are above...
-
-    // 2️⃣ Replace your externalNativeBuild block with this exact block:
     externalNativeBuild {
         cmake {
             path file('src/main/Cpp/CMakeLists.txt')
             version '3.22.1'
         }
     }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-}
-
-dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.9.0'
-}
-
-
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
