@@ -17,13 +17,18 @@ jobs:
         distribution: "zulu"
         java-version: "17"
 
-    # 🚀 THE FIX: Use 'validate-wrappers: false' to ignore the verification error
+    # 🚀 Setup standard stable Gradle 8.8 environment
     - name: Setup Gradle (Enforce Version 8.8)
       uses: gradle/actions/setup-gradle@v4
       with:
         gradle-version: '8.8'
         validate-wrappers: false
 
+    # 🛠️ REPAIR: Force-generate a brand new, clean wrapper targeting 8.8 to overwrite the corrupt one
+    - name: Regenerate Clean Wrapper
+      run: gradle wrapper --gradle-version 8.8 --distribution-type bin
+
+     Silber-Resizing Engine
     - name: Install ImageMagick for Logo Resizing
       run: |
         sudo apt-get update
@@ -49,6 +54,7 @@ jobs:
       run: |
         echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/Night_Shadow_Main_Key.jks
 
+    # 🚀 Run compilation explicitly using the freshly updated local wrapper
     - name: Compile and Sign Release Artifacts (APK & AAB)
       shell: bash
       env:
@@ -56,8 +62,9 @@ jobs:
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: |
-        gradle assembleRelease
-        gradle bundleRelease
+        chmod +x gradlew
+        ./gradlew assembleRelease
+        ./gradlew bundleRelease
 
     - name: Aggregate and Upload Application Packages
       uses: actions/upload-artifact@v4
