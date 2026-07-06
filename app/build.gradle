@@ -39,12 +39,18 @@ android {
         }
     }
     
-    externalNativeBuild {
+        externalNativeBuild {
         cmake {
-            path file('src/main/Cpp/CMakeLists.txt')
+            // This automatically looks for BOTH lowercase and uppercase folder variations
+            if (file("src/main/cpp/CMakeLists.txt").exists()) {
+                path file("src/main/cpp/CMakeLists.txt")
+            } else {
+                path file("src/main/Cpp/CMakeLists.txt")
+            }
             version '3.22.1'
         }
     }
+
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
