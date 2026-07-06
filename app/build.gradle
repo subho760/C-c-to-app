@@ -13,19 +13,7 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
-
-        // 1️⃣ Keep only compiler arguments here
-        externalNativeBuild {
-            cmake {
-                cppFlags "-std=c++17"
-                arguments "-DANDROID_STL=c++_shared"
-            }
-        }
     }
-
-    // 2️⃣ Fix the mutation error by setting the global paths via direct property assignment
-    externalNativeBuild.cmake.path = file("src/main/Cpp/CMakeLists.txt")
-    externalNativeBuild.cmake.version = "3.22.1"
 
     signingConfigs {
         release {
@@ -50,7 +38,17 @@ android {
     }
 }
 
-dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.9.0'
+// 🚀 FIXED: Isolated at the root level completely outside the 'android' block
+// This lets Gradle finish the Android asset lifecycle before touching C++ paths
+externalNativeBuild {
+    cmake {
+        path file('src/main/Cpp/CMakeLists.txt')
+        version '3.22.1'
+    }
+}
+
+// Attach the specific flags to the defaultConfig block sequentially via late-binding path extension
+android.defaultConfig.externalNativeBuild.cmake {
+    cppFlags "-std=c++17"
+    arguments "-DANDROID_STL=c++_shared"
 }
