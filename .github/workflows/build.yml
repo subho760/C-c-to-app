@@ -17,12 +17,12 @@ jobs:
         distribution: "zulu"
         java-version: "17"
 
-    # 🚀 FIX: Ignore the wrapper validation check to bypass the security crash
+    # 🚀 THE FIX: Use 'validate-wrappers: false' to ignore the verification error
     - name: Setup Gradle (Enforce Version 8.8)
       uses: gradle/actions/setup-gradle@v4
       with:
         gradle-version: '8.8'
-        disable-wrapper-validation: true
+        validate-wrappers: false
 
     - name: Install ImageMagick for Logo Resizing
       run: |
