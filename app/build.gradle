@@ -14,16 +14,18 @@ android {
         versionCode 1
         versionName "1.0"
 
-        // Everything handles neatly inside here so Gradle never locks classpaths early
+        // 1️⃣ Keep only compiler arguments here
         externalNativeBuild {
             cmake {
-                path file('src/main/Cpp/CMakeLists.txt')
-                version '3.22.1'
-                arguments "-DANDROID_STL=c++_shared"
                 cppFlags "-std=c++17"
+                arguments "-DANDROID_STL=c++_shared"
             }
         }
     }
+
+    // 2️⃣ Fix the mutation error by setting the global paths via direct property assignment
+    externalNativeBuild.cmake.path = file("src/main/Cpp/CMakeLists.txt")
+    externalNativeBuild.cmake.version = "3.22.1"
 
     signingConfigs {
         release {
