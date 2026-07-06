@@ -14,9 +14,11 @@ android {
         versionCode 1
         versionName "1.0"
 
-        // 1️⃣ Compiler arguments live here safely
+        // Everything handles neatly inside here so Gradle never locks classpaths early
         externalNativeBuild {
             cmake {
+                path file('src/main/Cpp/CMakeLists.txt')
+                version '3.22.1'
                 arguments "-DANDROID_STL=c++_shared"
                 cppFlags "-std=c++17"
             }
@@ -37,14 +39,6 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.release
-        }
-    }
-
-    // 2️⃣ Path references live here at the root level of 'android'
-    externalNativeBuild {
-        cmake {
-            path file('src/main/Cpp/CMakeLists.txt')
-            version '3.22.1'
         }
     }
 
