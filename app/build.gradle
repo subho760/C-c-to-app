@@ -39,17 +39,27 @@ android {
         }
     }
     
-        externalNativeBuild {
+            // 1️⃣ Keep your existing buildTypes and signingConfigs exactly as they are above...
+
+    // 2️⃣ Replace your externalNativeBuild block with this exact block:
+    externalNativeBuild {
         cmake {
-            // This automatically looks for BOTH lowercase and uppercase folder variations
-            if (file("src/main/cpp/CMakeLists.txt").exists()) {
-                path file("src/main/cpp/CMakeLists.txt")
-            } else {
-                path file("src/main/Cpp/CMakeLists.txt")
-            }
+            path file('src/main/Cpp/CMakeLists.txt')
             version '3.22.1'
         }
     }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.9.0'
+}
+
 
 
     compileOptions {
