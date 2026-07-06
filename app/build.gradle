@@ -29,10 +29,12 @@ android {
     
     externalNativeBuild {
         cmake {
-            path file('src/main/cpp/CMakeLists.txt')
+            // Capitalized 'Cpp' to ensure the Linux build runner maps it properly
+            path file('src/main/Cpp/CMakeLists.txt')
             version '3.22.1'
         }
     }
+
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
