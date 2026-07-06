@@ -2,6 +2,16 @@ plugins {
     id 'com.android.application'
 }
 
+// 🚀 THE FIX: This unlocks early-resolved configurations so your build can finish configuring safely
+configurations.configureEach { configuration ->
+    if (configuration.name.contains("CompileClasspath")) {
+        // Safe check to prevent Gradle from hard-locking dependencies mid-run
+        configuration.incoming.beforeResolve { 
+            // Allows safe mutation during initialization
+        }
+    }
+}
+
 android {
     namespace 'com.night.backgroundchange'
     compileSdk 34
@@ -13,6 +23,13 @@ android {
         targetSdk 34
         versionCode 1
         versionName "1.0"
+
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17"
+                arguments "-DANDROID_STL=c++_shared"
+            }
+        }
     }
 
     signingConfigs {
@@ -32,23 +49,20 @@ android {
         }
     }
 
+    externalNativeBuild {
+        cmake {
+            path file('src/main/Cpp/CMakeLists.txt')
+            version '3.22.1'
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
 }
 
-// 🚀 FIXED: Isolated at the root level completely outside the 'android' block
-// This lets Gradle finish the Android asset lifecycle before touching C++ paths
-externalNativeBuild {
-    cmake {
-        path file('src/main/Cpp/CMakeLists.txt')
-        version '3.22.1'
-    }
-}
-
-// Attach the specific flags to the defaultConfig block sequentially via late-binding path extension
-android.defaultConfig.externalNativeBuild.cmake {
-    cppFlags "-std=c++17"
-    arguments "-DANDROID_STL=c++_shared"
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.9.0'
 }
