@@ -6,8 +6,16 @@ import android.os.Bundle;
 import android.view.View;
 import android.widget.FrameLayout;
 
-public class MainActivity extends Activity {
-    static { System.loadLibrary("native-lib"); }
+    public class MainActivity extends AppCompatActivity {
+    static {
+        // Replace "game_logic" with the actual library name from CMakeLists.txt
+        System.loadLibrary("game_logic"); 
+    }
+    
+    // Your native methods declaration...
+    public native String stringFromJNI();
+    }
+    
 
     private GameEngine gameEngine;
     private MediaPlayer clickPlayer, winPlayer;
