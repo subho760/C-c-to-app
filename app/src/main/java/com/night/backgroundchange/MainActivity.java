@@ -1,24 +1,23 @@
 package com.night.backgroundchange;
 
+import androidx.appcompat.app.AppCompatActivity;
 import android.app.Activity;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.FrameLayout;
 
-    public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity {
     static {
-        // Replace "game_logic" with the actual library name from CMakeLists.txt
-        System.loadLibrary("game_logic"); 
+        System.loadLibrary("game_logic");
     }
-    
+
     // Your native methods declaration...
     public native String stringFromJNI();
-    }
-    
 
     private GameEngine gameEngine;
-    private MediaPlayer clickPlayer, winPlayer;
+    private MediaPlayer clickPlayer;
+    private MediaPlayer winPlayer;
     private boolean soundEnabled = true;
 
     // Native methods
@@ -29,10 +28,10 @@ import android.widget.FrameLayout;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
-        gameEngine = new GameEngine(this, this);
         setContentView(R.layout.activity_main);
-        
+
+        gameEngine = new GameEngine(this, this);
+
         // Add game engine to layout
         FrameLayout container = findViewById(R.id.game_container);
         container.addView(gameEngine);
@@ -52,12 +51,19 @@ import android.widget.FrameLayout;
         runOnUiThread(() -> {
             // Show Win UI (Next Level, Stars)
             // For now, auto-load next level
-            gameEngine.loadLevel(2); 
+            gameEngine.loadLevel(2);
         });
     }
 
     @Override
-    protected void onResume() { super.onResume(); gameEngine.resume(); }
+    protected void onResume() {
+        super.onResume();
+        gameEngine.resume();
+    }
+
     @Override
-    protected void onPause() { super.onPause(); gameEngine.pause(); }
+    protected void onPause() {
+        super.onPause();
+        gameEngine.pause();
+    }
 }
