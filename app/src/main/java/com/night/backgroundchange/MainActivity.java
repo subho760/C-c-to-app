@@ -1,40 +1,55 @@
 package com.night.backgroundchange;
 
 import androidx.appcompat.app.AppCompatActivity;
-import android.app.Activity;
+import android.app.AlertDialog;
 import android.media.MediaPlayer;
 import android.os.Bundle;
-import android.view.View;
 import android.widget.FrameLayout;
 
 public class MainActivity extends AppCompatActivity {
     static {
-        System.loadLibrary("game_logic");
+        try {
+            System.loadLibrary("game_logic");
+        } catch (UnsatisfiedLinkError e) {
+            // Caught if the C++ library fails to load entirely
+        }
     }
 
-    // Your native methods declaration...
+    // Native methods declarations
     public native String stringFromJNI();
+    public native void initNativeLevel(int[] data);
+    public native boolean canArrowMove(int arrowId);
+    public native void removeNativeArrow(int arrowId);
 
     private GameEngine gameEngine;
     private MediaPlayer clickPlayer;
     private MediaPlayer winPlayer;
     private boolean soundEnabled = true;
 
-    // Native methods
-    public native void initNativeLevel(int[] data);
-    public native boolean canArrowMove(int arrowId);
-    public native void removeNativeArrow(int arrowId);
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // 🟢 GLOBAL CRASH CATCHER: Displays errors directly on your screen
+        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+            runOnUiThread(() -> {
+                new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("Runtime Crash Detected")
+                    .setMessage(throwable.toString() + "\n\nAt: " + throwable.getStackTrace()[0].toString())
+                    .setPositiveButton("Close", (dialog, which) -> finish())
+                    .setCancelable(false)
+                    .show();
+            });
+        });
+
         super.onCreate(savedInstanceState);
+        
+        // Match your original initialization order exactly
+        gameEngine = new GameEngine(this, this);
         setContentView(R.layout.activity_main);
 
-        gameEngine = new GameEngine(this, this);
-
-        // Add game engine to layout
         FrameLayout container = findViewById(R.id.game_container);
-        container.addView(gameEngine);
+        if (container != null && gameEngine != null) {
+            container.addView(gameEngine);
+        }
 
         clickPlayer = MediaPlayer.create(this, R.raw.click);
         winPlayer = MediaPlayer.create(this, R.raw.completelevel);
@@ -42,28 +57,31 @@ public class MainActivity extends AppCompatActivity {
 
     public void playSound(boolean isWin) {
         if (!soundEnabled) return;
-        if (isWin) winPlayer.start();
-        else clickPlayer.start();
+        if (isWin) {
+            if (winPlayer != null) winPlayer.start();
+        } else {
+            if (clickPlayer != null) clickPlayer.start();
+        }
     }
 
     public void onLevelComplete() {
         playSound(true);
         runOnUiThread(() -> {
-            // Show Win UI (Next Level, Stars)
-            // For now, auto-load next level
-            gameEngine.loadLevel(2);
+            if (gameEngine != null) {
+                gameEngine.loadLevel(2);
+            }
         });
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        gameEngine.resume();
+        if (gameEngine != null) gameEngine.resume();
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        gameEngine.pause();
+        if (gameEngine != null) gameEngine.pause();
     }
 }
