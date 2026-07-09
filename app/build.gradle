@@ -1,22 +1,21 @@
 plugins {
     id 'com.android.application'
-    // Any other plugins you have like kotlin-android go here
 }
 
 android {
     namespace 'com.night.backgroundchange'
-    compileSdk 34 // Or your current compileSdk version
+    compileSdk 34
 
     defaultConfig {
         applicationId "com.night.backgroundchange"
-        minSdk 24
+        minSdk 21
         targetSdk 34
         versionCode 1
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-        
-        // 🟢 C++ Configuration inside defaultConfig
+
+        // Native Build Flags
         externalNativeBuild {
             cmake {
                 cppFlags ""
@@ -24,7 +23,7 @@ android {
         }
     }
 
-    // 🟢 C++ Configuration linking your CMakeLists file
+    // Link Gradle to the CMake Build Rules
     externalNativeBuild {
         cmake {
             path file("src/main/cpp/CMakeLists.txt")
@@ -38,6 +37,21 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // Core Android Libraries
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     
-    // ... rest of your build.gradle options like compileOptions or dependencies
+    // Testing Utilities
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.1.5'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
 }
