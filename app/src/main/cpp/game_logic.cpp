@@ -1,73 +1,23 @@
 #include <jni.h>
-#include <vector>
 #include <string>
 
-enum Direction { UP = 0, RIGHT = 1, DOWN = 2, LEFT = 3 };
-
-struct Arrow {
-    int id;
-    int x; // Grid X
-    int y; // Grid Y
-    int dir;
-    bool isMoving;
-};
-
-std::vector<Arrow> currentLevelArrows;
-int gridWidth = 6;
-int gridHeight = 8;
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_night_backgroundchange_MainActivity_stringFromJNI(JNIEnv* env, jobject thiz) {
+    return env->NewStringUTF("Hello from Native C++ Engine!");
+}
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_night_backgroundchange_MainActivity_initNativeLevel(JNIEnv *env, jobject thiz, jintArray data) {
-    currentLevelArrows.clear();
-    jsize len = env->GetArrayLength(data);
-    jint *body = env->GetIntArrayElements(data, 0);
-    
-    for (int i = 0; i < len; i += 4) {
-        Arrow a;
-        a.id = body[i];
-        a.x = body[i+1];
-        a.y = body[i+2];
-        a.dir = body[i+3];
-        a.isMoving = false;
-        currentLevelArrows.push_back(a);
-    }
-    env->ReleaseIntArrayElements(data, body, 0);
+Java_com_night_backgroundchange_MainActivity_initNativeLevel(JNIEnv* env, jobject thiz, jintArray data) {
+    // Backend processing for level initialization arrays
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
-Java_com_night_backgroundchange_MainActivity_canArrowMove(JNIEnv *env, jobject thiz, jint arrowId) {
-    Arrow* target = nullptr;
-    for (auto &a : currentLevelArrows) {
-        if (a.id == arrowId) {
-            target = &a;
-            break;
-        }
-    }
-    if (!target) return false;
-
-    // Check path for other arrows
-    for (auto &other : currentLevelArrows) {
-        if (other.id == arrowId || other.isMoving) continue;
-
-        if (target->dir == UP) {
-            if (other.x == target->x && other.y < target->y) return false;
-        } else if (target->dir == DOWN) {
-            if (other.x == target->x && other.y > target->y) return false;
-        } else if (target->dir == LEFT) {
-            if (other.y == target->y && other.x < target->x) return false;
-        } else if (target->dir == RIGHT) {
-            if (other.y == target->y && other.x > target->x) return false;
-        }
-    }
-    return true;
+Java_com_night_backgroundchange_MainActivity_canArrowMove(JNIEnv* env, jobject thiz, jint arrow_id) {
+    // Native mechanics calculation placeholder - default allowing movement
+    return JNI_TRUE;
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_night_backgroundchange_MainActivity_removeNativeArrow(JNIEnv *env, jobject thiz, jint arrowId) {
-    for (auto it = currentLevelArrows.begin(); it != currentLevelArrows.end(); ++it) {
-        if (it->id == arrowId) {
-            currentLevelArrows.erase(it);
-            break;
-        }
-    }
+Java_com_night_backgroundchange_MainActivity_removeNativeArrow(JNIEnv* env, jobject thiz, jint arrow_id) {
+    // Native tracking logic update placeholder
 }
