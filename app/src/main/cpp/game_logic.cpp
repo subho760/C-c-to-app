@@ -1,17 +1,20 @@
 #include <jni.h>
 #include <vector>
+#include <string>
 
 enum Direction { UP = 0, RIGHT = 1, DOWN = 2, LEFT = 3 };
 
 struct Arrow {
     int id;
-    int x; 
-    int y; 
+    int x; // Grid X
+    int y; // Grid Y
     int dir;
     bool isMoving;
 };
 
 std::vector<Arrow> currentLevelArrows;
+int gridWidth = 6;
+int gridHeight = 8;
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_initNativeLevel(JNIEnv *env, jobject thiz, jintArray data) {
@@ -40,22 +43,23 @@ Java_com_night_backgroundchange_MainActivity_canArrowMove(JNIEnv *env, jobject t
             break;
         }
     }
-    if (!target) return JNI_FALSE;
+    if (!target) return false;
 
+    // Check path for other arrows
     for (auto &other : currentLevelArrows) {
         if (other.id == arrowId || other.isMoving) continue;
 
         if (target->dir == UP) {
-            if (other.x == target->x && other.y < target->y) return JNI_FALSE;
-        } else if (target->dir == RIGHT) {
-            if (other.y == target->y && other.x > target->x) return JNI_FALSE;
+            if (other.x == target->x && other.y < target->y) return false;
         } else if (target->dir == DOWN) {
-            if (other.x == target->x && other.y > target->y) return JNI_FALSE;
+            if (other.x == target->x && other.y > target->y) return false;
         } else if (target->dir == LEFT) {
-            if (other.y == target->y && other.x < target->x) return JNI_FALSE;
+            if (other.y == target->y && other.x < target->x) return false;
+        } else if (target->dir == RIGHT) {
+            if (other.y == target->y && other.x > target->x) return false;
         }
     }
-    return JNI_TRUE;
+    return true;
 }
 
 extern "C" JNIEXPORT void JNICALL
