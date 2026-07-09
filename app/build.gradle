@@ -41,13 +41,12 @@ android {
         }
     }
 
-    // Explicit path location mapping blocks
     externalNativeBuild {
         cmake {
-            path file("src/main/Cpp/CMakeLists.txt")
-            version "3.22.1"
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.22.1'
         }
-    }
+        
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
