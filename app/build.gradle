@@ -1,10 +1,11 @@
 plugins {
     id 'com.android.application'
+    // Any other plugins you have like kotlin-android go here
 }
 
 android {
     namespace 'com.night.backgroundchange'
-    compileSdk 34
+    compileSdk 34 // Or your current compileSdk version
 
     defaultConfig {
         applicationId "com.night.backgroundchange"
@@ -14,22 +15,20 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-
-        // Safe arguments block definition
+        
+        // 🟢 C++ Configuration inside defaultConfig
         externalNativeBuild {
             cmake {
-                cppFlags "-std=c++17"
-                arguments "-DANDROID_STL=c++_shared"
+                cppFlags ""
             }
         }
     }
 
-    signingConfigs {
-        release {
-            storeFile file("Night_Shadow_Main_Key.jks")
-            storePassword System.getenv("KEYSTORE_PASSWORD")
-            keyAlias System.getenv("KEY_ALIAS")
-            keyPassword System.getenv("KEY_PASSWORD")
+    // 🟢 C++ Configuration linking your CMakeLists file
+    externalNativeBuild {
+        cmake {
+            path file("src/main/cpp/CMakeLists.txt")
+            version "3.22.1"
         }
     }
 
@@ -37,25 +36,8 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.release
         }
     }
-
-    externalNativeBuild {
-        cmake {
-            path file('src/main/cpp/CMakeLists.txt')
-            version '3.22.1'
-        }
-        
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-}
-
-dependencies {
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.9.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    
+    // ... rest of your build.gradle options like compileOptions or dependencies
 }
