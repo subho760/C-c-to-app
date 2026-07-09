@@ -48,16 +48,18 @@ jobs:
             convert app_logo_source.png -resize 192x192 app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
           fi
 
-      # 🟢 NEW: Automatically replace spaces with underscores in assets
       - name: Sanitize Resource Filenames
         run: |
           find app/src/main/res/ -name "* *" | while read -r file; do
             mv "$file" "${file// /_}"
           done
 
+      # 🟢 FIXED: Writes the keystore file to both expected directory structures
       - name: Decrypt and Initialize Production Keystore File
         run: |
+          mkdir -p app/app
           echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/Night_Shadow_Main_Key.jks
+          cp app/Night_Shadow_Main_Key.jks app/app/Night_Shadow_Main_Key.jks
 
       - name: Compile and Sign Release Artifacts (APK & AAB)
         shell: bash
