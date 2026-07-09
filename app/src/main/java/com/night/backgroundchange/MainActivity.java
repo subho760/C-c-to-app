@@ -16,9 +16,11 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
-    static {
-        System.loadLibrary("native-lib");
-    }
+    // Match the name defined in your CMakeLists.txt target
+static { 
+    System.loadLibrary("backgroundchange"); 
+}
+
 
     private native void initGame();
     private native void generateLevel(int level);
