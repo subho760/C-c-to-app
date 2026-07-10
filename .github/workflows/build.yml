@@ -54,18 +54,19 @@ jobs:
             mv "$file" "${file// /_}"
           done
 
-      # 🟢 FIXED: Writes the keystore file to both expected directory structures
+      # 🟢 FIXED: Decodes your SIGNING_KEY secret accurately into the root app directory
       - name: Decrypt and Initialize Production Keystore File
         run: |
           mkdir -p app/app
           echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/Night_Shadow_Main_Key.jks
           cp app/Night_Shadow_Main_Key.jks app/app/Night_Shadow_Main_Key.jks
 
+      # 🟢 FIXED: Corrected KEYSTORE_PASSWORD variable target and absolute path definitions
       - name: Compile and Sign Release Artifacts (APK & AAB)
         shell: bash
         env:
-          KEYSTORE_PATH: "app/Night_Shadow_Main_Key.jks"
-          KEYSTORE_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEYSTORE_PATH: "${{ github.workspace }}/app/Night_Shadow_Main_Key.jks"
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
