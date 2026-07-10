@@ -12,11 +12,11 @@ public class MainActivity extends Activity {
         try {
             System.loadLibrary("game_logic");
         } catch (Throwable t) {
-            // Safe fallback if C++ library load issues happen
+            // Prevent native loading issues from killing the app process
         }
     }
 
-    // Native JNI connections
+    // Native C++ Game Engines Engine Bridges
     public native String stringFromJNI();
     public native void initNativeLevel(int[] data);
     public native boolean canArrowMove(int arrowId);
@@ -32,23 +32,23 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // 1. Create a dynamic layout container right in the code
+        // 1. Inflate a programmatic full-screen hardware-accelerated root container
         FrameLayout rootContainer = new FrameLayout(this);
         setContentView(rootContainer);
 
-        // 2. Instantiate GameEngine passing the direct view container reference
+        // 2. Load the game layout viewport
         gameEngine = new GameEngine(this, this, rootContainer);
         rootContainer.addView(gameEngine);
 
-        // 3. Load background sound streams safely
+        // 3. Set up audio files safely
         try {
             clickPlayer = MediaPlayer.create(this, R.raw.click);
             winPlayer = MediaPlayer.create(this, R.raw.completelevel);
         } catch (Exception e) {
-            // Audio layout fallback
+            // Sound fallback safety check
         }
 
-        // 4. Send the starter 200-element matrix configuration down to C++ layer
+        // 4. Send initial level structural grid to C++ native side
         try {
             int[] secureStarterGrid = new int[200]; 
             for (int i = 0; i < secureStarterGrid.length; i++) {
@@ -56,10 +56,10 @@ public class MainActivity extends Activity {
             }
             initNativeLevel(secureStarterGrid);
         } catch (Throwable nativeError) {
-            // Protect native call bridges
+            // Catch native bridge mismatches safely
         }
 
-        // 5. Hardware Drawing Surface Lifecycle Hook Sync
+        // 5. Connect the hardware surface view drawing hooks
         if (gameEngine instanceof SurfaceView) {
             SurfaceHolder holder = ((SurfaceView) gameEngine).getHolder();
             holder.addCallback(new SurfaceHolder.Callback() {
@@ -121,12 +121,6 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
-        if (gameEngine != null) {
-            gameThreadPause();
-        }
-    }
-
-    private void gameThreadPause() {
         if (gameEngine != null) {
             gameEngine.pause();
         }
