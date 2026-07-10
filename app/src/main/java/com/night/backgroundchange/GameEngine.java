@@ -60,7 +60,6 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
 
     private void loadBitmaps() {
         try {
-            // Safe assignment attempting to find your resource names
             bgBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.game_bg);
             arrowUp = BitmapFactory.decodeResource(getResources(), R.drawable.arrow_up);
             arrowDown = BitmapFactory.decodeResource(getResources(), R.drawable.arrow_down);
@@ -80,11 +79,8 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
 
         levelGrid = new int[rows][cols];
 
-        // =================================================================
-        // 🎮 FULL PLAYABLE PUZZLE LAYOUT DEFINITIONS
-        // =================================================================
         if (level == 1) {
-            // Populate multiple blocks to build a real map frame layout
+            // Populate multiple blocks to build a real map layout
             blocks.add(new Block(1, 1, false));
             blocks.add(new Block(1, 4, false));
             blocks.add(new Block(3, 2, false));
@@ -100,11 +96,9 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             arrows.add(new Arrow(1, 3, "DOWN", 3));
             arrows.add(new Arrow(3, 1, "RIGHT", 4));
 
-            // Map values directly into verification array coordinates
             levelGrid[1][1] = 1; levelGrid[1][4] = 1; levelGrid[3][2] = 1; levelGrid[5][3] = 1;
             levelGrid[7][2] = 3; levelGrid[7][4] = 3; 
         } else {
-            // Level 2 Layout Schema Setup
             blocks.add(new Block(2, 2, false));
             blocks.add(new Block(4, 4, true));
             arrows.add(new Arrow(1, 4, "RIGHT", 5));
@@ -121,7 +115,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             try {
                 activity.initNativeLevel(linearGrid);
             } catch (Throwable t) {
-                // Safeguard JNI binding thresholds
+                // Safeguard JNI binding
             }
         }
     }
@@ -159,8 +153,8 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
-                } finaly {
-                    // Protected viewport layout wrapper
+                } finally {
+                    // FIXED: Spelled 'finally' correctly with double 'l' here!
                 }
                 surfaceHolder.unlockCanvasAndPost(canvas);
             }
@@ -178,10 +172,8 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             if (arrow.isMoving) {
                 arrow.updatePosition();
                 
-                // Boundaries reset check so arrows don't fly off the game screen limits
                 if (arrow.currentX < 0 || arrow.currentX >= cols || arrow.currentY < 0 || arrow.currentY >= rows) {
                     arrow.isMoving = false;
-                    // Reset positions safely back to grid range bounds
                     arrow.currentX = Math.max(0, Math.min(arrow.currentX, cols - 1));
                     arrow.currentY = Math.max(0, Math.min(arrow.currentY, rows - 1));
                 }
@@ -193,14 +185,13 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
         if (bgBitmap != null) {
             canvas.drawBitmap(bgBitmap, 0, 0, null);
         } else {
-            canvas.drawColor(Color.parseColor("#0F1322")); // Deep premium space dark background
+            canvas.drawColor(Color.parseColor("#0F1322")); 
         }
 
         cellSize = Math.min(canvas.getWidth() / cols, canvas.getHeight() / rows);
         offsetX = (canvas.getWidth() - (cols * cellSize)) / 2;
         offsetY = (canvas.getHeight() - (rows * cellSize)) / 2;
 
-        // Draw Board Grid Cells Matrix
         paint.setStyle(Paint.Style.STROKE);
         paint.setColor(Color.parseColor("#1D2640"));
         paint.setStrokeWidth(3);
@@ -211,7 +202,6 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             canvas.drawLine(offsetX + c * cellSize, offsetY, offsetX + c * cellSize, offsetY + rows * cellSize, paint);
         }
 
-        // Draw Game Puzzle Level Blocks (With Clean Rounded Box Vectors if Bitmaps are missing)
         paint.setStyle(Paint.Style.FILL);
         for (Block block : blocks) {
             Bitmap b = block.isTarget ? blockTarget : blockNormal;
@@ -221,13 +211,11 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             if (b != null) {
                 canvas.drawBitmap(b, left, top, null);
             } else {
-                // Targets = Neon Rose Red, Normal Obstacle Blocks = Smooth Amber Gold
                 paint.setColor(block.isTarget ? Color.parseColor("#EF476F") : Color.parseColor("#FFD166"));
                 canvas.drawRoundRect(left + 8, top + 8, left + cellSize - 8, top + cellSize - 8, 16, 16, paint);
             }
         }
 
-        // Draw Directional Arrows (With Sleek Triangle Vectors if PNG files are missing)
         for (Arrow arrow : arrows) {
             Bitmap aBitmap = null;
             switch (arrow.direction) {
@@ -243,7 +231,6 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             if (aBitmap != null) {
                 canvas.drawBitmap(aBitmap, left, top, null);
             } else {
-                // Cyan Electric Blue Navigation Triangles
                 paint.setColor(Color.parseColor("#06D6A0"));
                 drawVectorArrow(canvas, left, top, cellSize, arrow.direction);
             }
@@ -292,7 +279,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
                     try {
                         if (activity != null) canMove = activity.canArrowMove(arrow.id);
                     } catch (Throwable t) {
-                        // Safe JNI fallback metrics
+                        // Safe JNI fallback
                     }
 
                     if (canMove) {
