@@ -122,6 +122,12 @@ public class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         if (gameEngine != null) {
+            gameThreadPause();
+        }
+    }
+
+    private void gameThreadPause() {
+        if (gameEngine != null) {
             gameEngine.pause();
         }
     }
