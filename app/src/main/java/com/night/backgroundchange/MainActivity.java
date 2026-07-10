@@ -1,18 +1,19 @@
 package com.night.backgroundchange;
 
 import androidx.appcompat.app.AppCompatActivity;
-import android.media.MediaPlayer;
 import android.os.Bundle;
-import android.view.SurfaceHolder;
-import android.view.SurfaceView;
-import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.graphics.Color;
+import android.media.MediaPlayer;
 
 public class MainActivity extends AppCompatActivity {
     static {
-        System.loadLibrary("game_logic");
+        try {
+            System.loadLibrary("game_logic");
+        } catch (Throwable t) {
+            // Handled inside onCreate safely
+        }
     }
 
     public native String stringFromJNI();
@@ -23,113 +24,62 @@ public class MainActivity extends AppCompatActivity {
     private GameEngine gameEngine;
     private MediaPlayer clickPlayer;
     private MediaPlayer winPlayer;
-    private boolean soundEnabled = true;
-    private boolean isSurfaceReady = false;
-    
-    private TextView statusTracker;
-    private StringBuilder statusLog = new StringBuilder();
-
-    private void logStep(String message) {
-        runOnUiThread(() -> {
-            statusLog.append("✔ ").append(message).append("\n");
-            if (statusTracker != null) {
-                statusTracker.setText(statusLog.toString());
-            }
-        });
-    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
-        // 1. Create a tracking overlay layout frame
-        FrameLayout mainLayout = new FrameLayout(this);
-        mainLayout.setBackgroundColor(Color.BLACK);
 
-        statusTracker = new TextView(this);
-        statusTracker.setTextColor(Color.GREEN);
-        statusTracker.setTextSize(14);
-        statusTracker.setPadding(40, 80, 40, 40);
-        statusTracker.setText("Starting detailed GameEngine checks...\n");
-        
-        FrameLayout gameContainer = new FrameLayout(this);
-        mainLayout.addView(gameContainer);
-        mainLayout.addView(statusTracker); 
-        setContentView(mainLayout);
+        // 1. Create a clean, simple text window to show us what happens
+        TextView errorDisplay = new TextView(this);
+        errorDisplay.setTextColor(Color.WHITE);
+        errorDisplay.setTextSize(16);
+        errorDisplay.setPadding(50, 100, 50, 50);
+        errorDisplay.setText("Checking app files... Please wait.");
+        setContentView(errorDisplay);
 
-        logStep("MainActivity started safely.");
-
-        // 2. Test JNI Connection
         try {
-            String jniCheck = stringFromJNI();
-            logStep("Native JNI Handshake: " + jniCheck);
-        } catch (Throwable t) {
-            logStep("JNI Handshake skipped: " + t.getMessage());
-        }
-
-        // 3. Run the GameEngine creation inside a monitored UI runner sequence
-        runOnUiThread(() -> {
-            try {
-                logStep("Attempting to run GameEngine constructor...");
-                
-                gameEngine = new GameEngine(MainActivity.this, MainActivity.this);
-                
-                logStep("GameEngine instance created successfully!");
-                gameContainer.addView(gameEngine);
-                logStep("GameEngine view added to container frame.");
-
-                // 4. Initialize level data mapping arrays
-                int[] secureStarterGrid = new int[200]; 
-                for (int i = 0; i < secureStarterGrid.length; i++) {
-                    secureStarterGrid[i] = 1; 
-                }
-                initNativeLevel(secureStarterGrid);
-                logStep("Native level data matrix synced safely.");
-
-                // 5. Setup View callbacks
-                if (gameEngine instanceof SurfaceView) {
-                    logStep("SurfaceView detected. Assigning hardware holder hooks...");
-                    SurfaceHolder holder = ((SurfaceView) gameEngine).getHolder();
-                    holder.addCallback(new SurfaceHolder.Callback() {
-                        @Override
-                        public void surfaceCreated(SurfaceHolder holder) {
-                            isSurfaceReady = true;
-                            logStep("Surface created! Resuming engine thread loop...");
-                            gameEngine.resume();
-                        }
-
-                        @Override
-                        public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
-
-                        @Override
-                        public void surfaceDestroyed(SurfaceHolder holder) {
-                            isSurfaceReady = false;
-                            gameEngine.pause();
-                        }
-                    });
-                } else {
-                    logStep("Standard view wrapper detected. Directing thread startup sequence...");
-                    isSurfaceReady = true;
-                    gameEngine.resume();
-                    logStep("Engine thread resume loop executed.");
-                }
-
-            } catch (Throwable e) {
-                logStep("🚨 CRASH INSIDE ENGINE: " + e.toString());
-                if (e.getCause() != null) {
-                    logStep("REASON: " + e.getCause().toString());
-                }
+            // 2. Load layout files safely
+            setContentView(R.layout.activity_main);
+            
+            FrameLayout container = findViewById(R.id.game_container);
+            if (container == null) {
+                errorDisplay.setText("❌ Error: Could not find 'game_container' in activity_main.xml layout file.");
+                setContentView(errorDisplay);
+                return;
             }
-        });
+
+            // 3. Try to start the GameEngine
+            try {
+                gameEngine = new GameEngine(this, this);
+                container.addView(gameEngine);
+            } catch (Throwable engineError) {
+                errorDisplay.setText("❌ The app is freezing inside GameEngine.java!\n\nDetails:\n" + engineError.toString());
+                setContentView(errorDisplay);
+                return;
+            }
+
+            // 4. Set up audio files safely
+            try {
+                clickPlayer = MediaPlayer.create(this, R.raw.click);
+                winPlayer = MediaPlayer.create(this, R.raw.completelevel);
+            } catch (Exception e) {
+                // Keep moving if sound files are missing
+            }
+
+            // 5. Fire up the game loop
+            if (gameEngine != null) {
+                gameEngine.resume();
+            }
+
+        } catch (Throwable overallError) {
+            errorDisplay.setText("❌ App Setup Failed!\n\nError Message:\n" + overallError.toString());
+            setContentView(errorDisplay);
+        }
     }
 
     public void playSound(boolean isWin) {
-        if (!soundEnabled) return;
-        if (isWin) {
-            if (winPlayer != null) winPlayer.start();
-        } else {
-            if (clickPlayer != null) clickPlayer.start();
-        }
+        if (isWin && winPlayer != null) winPlayer.start();
+        if (!isWin && clickPlayer != null) clickPlayer.start();
     }
 
     public void onLevelComplete() {
@@ -144,7 +94,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (gameEngine != null && isSurfaceReady) {
+        if (gameEngine != null) {
             gameEngine.resume();
         }
     }
