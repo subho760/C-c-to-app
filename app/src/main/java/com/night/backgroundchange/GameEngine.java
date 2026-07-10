@@ -34,11 +34,6 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
     private int offsetX;
     private int offsetY;
 
-    // Bitmaps
-    private Bitmap bgBitmap;
-    private Bitmap arrowUp, arrowDown, arrowLeft, arrowRight;
-    private Bitmap blockNormal, blockTarget;
-
     public GameEngine(Context context, MainActivity activity, FrameLayout container) {
         super(context);
         this.activity = activity;
@@ -54,22 +49,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
         this.arrows = new ArrayList<>();
         this.blocks = new ArrayList<>();
 
-        loadBitmaps();
         loadLevel(currentLevel);
-    }
-
-    private void loadBitmaps() {
-        try {
-            bgBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.game_bg);
-            arrowUp = BitmapFactory.decodeResource(getResources(), R.drawable.arrow_up);
-            arrowDown = BitmapFactory.decodeResource(getResources(), R.drawable.arrow_down);
-            arrowLeft = BitmapFactory.decodeResource(getResources(), R.drawable.arrow_left);
-            arrowRight = BitmapFactory.decodeResource(getResources(), R.drawable.arrow_right);
-            blockNormal = BitmapFactory.decodeResource(getResources(), R.drawable.block_normal);
-            blockTarget = BitmapFactory.decodeResource(getResources(), R.drawable.block_target);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
     }
 
     public void loadLevel(int level) {
@@ -80,13 +60,13 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
         levelGrid = new int[rows][cols];
 
         if (level == 1) {
-            // Populate multiple blocks to build a real map layout
+            // Populate normal blocks
             blocks.add(new Block(1, 1, false));
             blocks.add(new Block(1, 4, false));
             blocks.add(new Block(3, 2, false));
             blocks.add(new Block(5, 3, false));
             
-            // Add Target destination flags (Red Blocks)
+            // Add Target blocks
             blocks.add(new Block(7, 2, true));
             blocks.add(new Block(7, 4, true));
 
@@ -154,7 +134,6 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
-                // FIXED: Removed the unnecessary finally block completely to avoid symbol errors
                 surfaceHolder.unlockCanvasAndPost(canvas);
             }
 
@@ -181,16 +160,15 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
     }
 
     private void renderGame(Canvas canvas) {
-        if (bgBitmap != null) {
-            canvas.drawBitmap(bgBitmap, 0, 0, null);
-        } else {
-            canvas.drawColor(Color.parseColor("#0F1322")); 
-        }
+        // 🎨 CHANGE BACKGROUND COLOR HERE
+        // Currently configured to a clean dark midnight blue (#0F1322) instead of plain white
+        canvas.drawColor(Color.parseColor("#0F1322")); 
 
         cellSize = Math.min(canvas.getWidth() / cols, canvas.getHeight() / rows);
         offsetX = (canvas.getWidth() - (cols * cellSize)) / 2;
         offsetY = (canvas.getHeight() - (rows * cellSize)) / 2;
 
+        // Draw Grid Lines
         paint.setStyle(Paint.Style.STROKE);
         paint.setColor(Color.parseColor("#1D2640"));
         paint.setStrokeWidth(3);
@@ -201,38 +179,26 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             canvas.drawLine(offsetX + c * cellSize, offsetY, offsetX + c * cellSize, offsetY + rows * cellSize, paint);
         }
 
+        // Draw Blocks using shapes
         paint.setStyle(Paint.Style.FILL);
         for (Block block : blocks) {
-            Bitmap b = block.isTarget ? blockTarget : blockNormal;
             int left = offsetX + block.col * cellSize;
             int top = offsetY + block.row * cellSize;
             
-            if (b != null) {
-                canvas.drawBitmap(b, left, top, null);
-            } else {
-                paint.setColor(block.isTarget ? Color.parseColor("#EF476F") : Color.parseColor("#FFD166"));
-                canvas.drawRoundRect(left + 8, top + 8, left + cellSize - 8, top + cellSize - 8, 16, 16, paint);
-            }
+            // Targets are Red (#EF476F), Normal blocks are Amber (#FFD166)
+            paint.setColor(block.isTarget ? Color.parseColor("#EF476F") : Color.parseColor("#FFD166"));
+            canvas.drawRoundRect(left + 8, top + 8, left + cellSize - 8, top + cellSize - 8, 16, 16, paint);
         }
 
+        // Draw Arrows using vector paths
         for (Arrow arrow : arrows) {
-            Bitmap aBitmap = null;
-            switch (arrow.direction) {
-                case "UP": aBitmap = arrowUp; break;
-                case "DOWN": aBitmap = arrowDown; break;
-                case "LEFT": aBitmap = arrowLeft; break;
-                case "RIGHT": aBitmap = arrowRight; break;
-            }
-
             int left = offsetX + arrow.currentX * cellSize;
             int top = offsetY + arrow.currentY * cellSize;
 
-            if (aBitmap != null) {
-                canvas.drawBitmap(aBitmap, left, top, null);
-            } else {
-                paint.setColor(Color.parseColor("#06D6A0"));
-                drawVectorArrow(canvas, left, top, cellSize, arrow.direction);
-            }
+            paint.setStyle(Paint.Style.FILL);
+            // Green color for active interactive elements
+            paint.setColor(Color.parseColor("#06D6A0"));
+            drawVectorArrow(canvas, left, top, cellSize, arrow.direction);
         }
     }
 
