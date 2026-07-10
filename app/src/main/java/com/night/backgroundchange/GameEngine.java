@@ -1,8 +1,6 @@
 package com.night.backgroundchange;
 
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -23,16 +21,19 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
     private SurfaceHolder surfaceHolder;
     private Paint paint;
 
-    // Game Matrix Metrics
-    private int currentLevel = 1;
-    private int[][] levelGrid;
-    private List<Arrow> arrows;
-    private List<Block> blocks;
+    // Grid System
     private int rows = 9;
     private int cols = 6;
     private int cellSize;
     private int offsetX;
     private int offsetY;
+
+    // Game Elements
+    private int currentLevel = 1;
+    private List<Arrow> arrows;
+    private List<TargetZone> targets;
+    private boolean isSimulationRunning = false;
+    private float simulationSpeed = 0.15f; // Control smooth transit movement
 
     public GameEngine(Context context, MainActivity activity, FrameLayout container) {
         super(context);
@@ -47,57 +48,34 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
         setFocusable(true);
 
         this.arrows = new ArrayList<>();
-        this.blocks = new ArrayList<>();
+        this.targets = new ArrayList<>();
 
         loadLevel(currentLevel);
     }
 
     public void loadLevel(int level) {
         this.currentLevel = level;
-        arrows.clear();
-        blocks.clear();
-
-        levelGrid = new int[rows][cols];
+        this.arrows.clear();
+        this.targets.clear();
+        this.isSimulationRunning = false;
 
         if (level == 1) {
-            // Populate normal blocks
-            blocks.add(new Block(1, 1, false));
-            blocks.add(new Block(1, 4, false));
-            blocks.add(new Block(3, 2, false));
-            blocks.add(new Block(5, 3, false));
-            
-            // Add Target blocks
-            blocks.add(new Block(7, 2, true));
-            blocks.add(new Block(7, 4, true));
+            // Set up Destination target nodes (Goal spots)
+            targets.add(new TargetZone(2, 1, "#EF476F")); // Red Target
+            targets.add(new TargetZone(4, 4, "#FFD166")); // Yellow Target
 
-            // Set up our interactive arrows scattered on the grid fields
-            arrows.add(new Arrow(2, 5, "UP", 1));
-            arrows.add(new Arrow(4, 6, "LEFT", 2));
-            arrows.add(new Arrow(1, 3, "DOWN", 3));
-            arrows.add(new Arrow(3, 1, "RIGHT", 4));
-
-            levelGrid[1][1] = 1; levelGrid[1][4] = 1; levelGrid[3][2] = 1; levelGrid[5][3] = 1;
-            levelGrid[7][2] = 3; levelGrid[7][4] = 3; 
+            // Place interactive puzzle arrows that users rotate to form paths
+            arrows.add(new Arrow(1, 4, "RIGHT", 1));
+            arrows.add(new Arrow(2, 4, "UP", 2));
+            arrows.add(new Arrow(4, 2, "LEFT", 3));
         } else {
-            blocks.add(new Block(2, 2, false));
-            blocks.add(new Block(4, 4, true));
-            arrows.add(new Arrow(1, 4, "RIGHT", 5));
-            levelGrid[2][2] = 1; levelGrid[4][4] = 3;
+            targets.add(new TargetZone(3, 3, "#06D6A0"));
+            arrows.add(new Arrow(1, 1, "RIGHT", 1));
         }
+    }
 
-        if (activity != null) {
-            int[] linearGrid = new int[rows * cols];
-            for (int r = 0; r < rows; r++) {
-                for (int c = 0; c < cols; c++) {
-                    linearGrid[r * cols + c] = levelGrid[r][c];
-                }
-            }
-            try {
-                activity.initNativeLevel(linearGrid);
-            } catch (Throwable t) {
-                // Safeguard JNI binding
-            }
-        }
+    public void startPathSimulation() {
+        this.isSimulationRunning = true;
     }
 
     public void resume() {
@@ -146,92 +124,161 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
     }
 
     private void updateGameLogic() {
+        if (!isSimulationRunning) return;
+
+        boolean anyArrowMoving = false;
         for (Arrow arrow : arrows) {
             if (arrow.isMoving) {
-                arrow.updatePosition();
-                
-                if (arrow.currentX < 0 || arrow.currentX >= cols || arrow.currentY < 0 || arrow.currentY >= rows) {
-                    arrow.isMoving = false;
-                    arrow.currentX = Math.max(0, Math.min(arrow.currentX, cols - 1));
-                    arrow.currentY = Math.max(0, Math.min(arrow.currentY, rows - 1));
+                anyArrowMoving = true;
+                arrow.animateProgress += simulationSpeed;
+
+                if (arrow.animateProgress >= 1.0f) {
+                    arrow.animateProgress = 0.0f;
+                    
+                    // Advance coordinates based on direction vectors
+                    switch (arrow.direction) {
+                        case "UP": arrow.gridY--; break;
+                        case "DOWN": arrow.gridY++; break;
+                        case "LEFT": arrow.gridX--; break;
+                        case "RIGHT": arrow.gridX++; break;
+                    }
+
+                    // Check boundaries or goal intersections
+                    if (arrow.gridX < 0 || arrow.gridX >= cols || arrow.gridY < 0 || arrow.gridY >= rows) {
+                        arrow.isMoving = false;
+                    }
+                    
+                    checkTargetCollisions(arrow);
+                }
+            }
+        }
+        
+        // Auto start movement on simulation trigger
+        if (isSimulationRunning && !anyArrowMoving) {
+            for (Arrow arrow : arrows) {
+                if (arrow.gridX >= 0 && arrow.gridX < cols && arrow.gridY >= 0 && arrow.gridY < rows) {
+                    arrow.isMoving = true;
                 }
             }
         }
     }
 
+    private void checkTargetCollisions(Arrow arrow) {
+        for (TargetZone target : targets) {
+            if (target.gridX == arrow.gridX && target.gridY == arrow.gridY) {
+                target.isCleared = true;
+                arrow.isMoving = false;
+                // Safe JNI audio dispatch hook
+                try { if (activity != null) activity.playSound(true); } catch (Throwable ignored) {}
+            }
+        }
+    }
+
     private void renderGame(Canvas canvas) {
-        // 🎨 CHANGE BACKGROUND COLOR HERE
-        // Currently configured to a clean dark midnight blue (#0F1322) instead of plain white
-        canvas.drawColor(Color.parseColor("#0F1322")); 
+        // High-fidelity Deep Cosmic Blueprint Background
+        canvas.drawColor(Color.parseColor("#0A0E1A")); 
 
         cellSize = Math.min(canvas.getWidth() / cols, canvas.getHeight() / rows);
         offsetX = (canvas.getWidth() - (cols * cellSize)) / 2;
         offsetY = (canvas.getHeight() - (rows * cellSize)) / 2;
 
-        // Draw Grid Lines
+        // Draw Modern Grid Array Lines
         paint.setStyle(Paint.Style.STROKE);
-        paint.setColor(Color.parseColor("#1D2640"));
-        paint.setStrokeWidth(3);
+        paint.setStrokeWidth(2);
         for (int r = 0; r <= rows; r++) {
+            paint.setColor(Color.parseColor(r % 3 == 0 ? "#1E2942" : "#131A2E"));
             canvas.drawLine(offsetX, offsetY + r * cellSize, offsetX + cols * cellSize, offsetY + r * cellSize, paint);
         }
         for (int c = 0; c <= cols; c++) {
+            paint.setColor(Color.parseColor(c % 3 == 0 ? "#1E2942" : "#131A2E"));
             canvas.drawLine(offsetX + c * cellSize, offsetY, offsetX + c * cellSize, offsetY + rows * cellSize, paint);
         }
 
-        // Draw Blocks using shapes
+        // Render Targets (Goal Nodes)
         paint.setStyle(Paint.Style.FILL);
-        for (Block block : blocks) {
-            int left = offsetX + block.col * cellSize;
-            int top = offsetY + block.row * cellSize;
+        for (TargetZone target : targets) {
+            int cx = offsetX + target.gridX * cellSize + cellSize / 2;
+            int cy = offsetY + target.gridY * cellSize + cellSize / 2;
             
-            // Targets are Red (#EF476F), Normal blocks are Amber (#FFD166)
-            paint.setColor(block.isTarget ? Color.parseColor("#EF476F") : Color.parseColor("#FFD166"));
-            canvas.drawRoundRect(left + 8, top + 8, left + cellSize - 8, top + cellSize - 8, 16, 16, paint);
+            if (target.isCleared) {
+                paint.setColor(Color.parseColor("#06D6A0")); // Pulse green on solved
+                canvas.drawCircle(cx, cy, cellSize * 0.4f, paint);
+            } else {
+                paint.setColor(Color.parseColor(target.colorHex));
+                canvas.drawCircle(cx, cy, cellSize * 0.35f, paint);
+                paint.setStyle(Paint.Style.STROKE);
+                paint.setColor(Color.WHITE);
+                paint.setStrokeWidth(4);
+                canvas.drawCircle(cx, cy, cellSize * 0.2f, paint);
+                paint.setStyle(Paint.Style.FILL);
+            }
         }
 
-        // Draw Arrows using vector paths
+        // Render Elegant Glowing Vector Arrows
         for (Arrow arrow : arrows) {
-            int left = offsetX + arrow.currentX * cellSize;
-            int top = offsetY + arrow.currentY * cellSize;
+            float currentRenderX = arrow.gridX;
+            float currentRenderY = arrow.gridY;
 
-            paint.setStyle(Paint.Style.FILL);
-            // Green color for active interactive elements
-            paint.setColor(Color.parseColor("#06D6A0"));
-            drawVectorArrow(canvas, left, top, cellSize, arrow.direction);
+            // Interpolate movement smoothly across grid rows during running phases
+            if (arrow.isMoving) {
+                switch (arrow.direction) {
+                    case "UP": currentRenderY -= arrow.animateProgress; break;
+                    case "DOWN": currentRenderY += arrow.animateProgress; break;
+                    case "LEFT": currentRenderX -= arrow.animateProgress; break;
+                    case "RIGHT": currentRenderX += arrow.animateProgress; break;
+                }
+            }
+
+            float left = offsetX + currentRenderX * cellSize;
+            float top = offsetY + currentRenderY * cellSize;
+
+            paint.setColor(Color.parseColor("#3A86FF")); // Premium Cyber Blue Interactive Accent
+            drawProceduralArrow(canvas, left, top, cellSize, arrow.direction);
         }
     }
 
-    private void drawVectorArrow(Canvas canvas, int left, int top, int size, String direction) {
+    private void drawProceduralArrow(Canvas canvas, float left, float top, float size, String direction) {
         Path path = new Path();
-        float padding = size * 0.25f;
+        float padding = size * 0.2f;
         float centerX = left + size / 2f;
         float centerY = top + size / 2f;
 
         if ("UP".equals(direction)) {
             path.moveTo(centerX, top + padding);
             path.lineTo(left + padding, top + size - padding);
+            path.lineTo(centerX, top + size - padding * 1.5f);
             path.lineTo(left + size - padding, top + size - padding);
         } else if ("DOWN".equals(direction)) {
             path.moveTo(centerX, top + size - padding);
             path.lineTo(left + padding, top + padding);
+            path.lineTo(centerX, top + padding * 1.5f);
             path.lineTo(left + size - padding, top + padding);
         } else if ("LEFT".equals(direction)) {
             path.moveTo(left + padding, centerY);
             path.lineTo(left + size - padding, top + padding);
+            path.lineTo(left + size - padding * 1.5f, centerY);
             path.lineTo(left + size - padding, top + size - padding);
         } else if ("RIGHT".equals(direction)) {
             path.moveTo(left + size - padding, centerY);
             path.lineTo(left + padding, top + padding);
+            path.lineTo(left + padding * 1.5f, centerY);
             path.lineTo(left + padding, top + size - padding);
         }
         path.close();
+        
+        paint.setStyle(Paint.Style.FILL);
         canvas.drawPath(path, paint);
+        
+        // Add a clean high-contrast outer ring highlight
+        paint.setStyle(Paint.Style.STROKE);
+        paint.setColor(Color.parseColor("#4CC9F0"));
+        paint.setStrokeWidth(3);
+        canvas.drawRoundRect(left + 4, top + 4, left + size - 4, top + size - 4, 12, 12, paint);
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        if (event.getAction() == MotionEvent.ACTION_DOWN) {
+        if (event.getAction() == MotionEvent.ACTION_DOWN && !isSimulationRunning) {
             float tx = event.getX();
             float ty = event.getY();
 
@@ -239,19 +286,17 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             int clickedRow = (int) ((ty - offsetY) / cellSize);
 
             for (Arrow arrow : arrows) {
-                if (arrow.currentX == clickedCol && arrow.currentY == clickedRow && !arrow.isMoving) {
-                    boolean canMove = true;
+                if (arrow.gridX == clickedCol && arrow.gridY == clickedRow) {
+                    // Click cycles directional rotation 90 degrees clockwise
+                    arrow.rotateClockwise();
+                    
                     try {
-                        if (activity != null) canMove = activity.canArrowMove(arrow.id);
-                    } catch (Throwable t) {
-                        // Safe JNI fallback
-                    }
-
-                    if (canMove) {
-                        arrow.isMoving = true;
-                        if (activity != null) {
-                            activity.playSound(false); 
-                        }
+                        if (activity != null) activity.playSound(false); 
+                    } catch (Throwable ignored) {}
+                    
+                    // Simple trigger mechanism: double-clicking an arrow launches the execution simulation
+                    if (event.getEventTime() - event.getDownTime() > 500) {
+                        startPathSimulation();
                     }
                     break;
                 }
@@ -269,45 +314,45 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
 
     @Override
     public void surfaceCreated(SurfaceHolder holder) {}
-
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
-
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {}
 
-    // Subclasses
+    // Subclasses 
     public static class Arrow {
         public int id;
-        public int currentX, currentY;
+        public int gridX, gridY;
         public String direction;
         public boolean isMoving = false;
+        public float animateProgress = 0.0f;
 
         public Arrow(int x, int y, String dir, int id) {
-            this.currentX = x;
-            this.currentY = y;
+            this.gridX = x;
+            this.gridY = y;
             this.direction = dir;
             this.id = id;
         }
 
-        public void updatePosition() {
+        public void rotateClockwise() {
             switch (direction) {
-                case "UP": currentY--; break;
-                case "DOWN": currentY++; break;
-                case "LEFT": currentX--; break;
-                case "RIGHT": currentX++; break;
+                case "UP": direction = "RIGHT"; break;
+                case "RIGHT": direction = "DOWN"; break;
+                case "DOWN": direction = "LEFT"; break;
+                case "LEFT": direction = "UP"; break;
             }
         }
     }
 
-    public static class Block {
-        public int row, col;
-        public boolean isTarget;
+    public static class TargetZone {
+        public int gridX, gridY;
+        public String colorHex;
+        public boolean isCleared = false;
 
-        public Block(int r, int c, boolean t) {
-            this.row = r;
-            this.col = c;
-            this.isTarget = t;
+        public TargetZone(int x, int y, String color) {
+            this.gridX = x;
+            this.gridY = y;
+            this.colorHex = color;
         }
     }
 }
