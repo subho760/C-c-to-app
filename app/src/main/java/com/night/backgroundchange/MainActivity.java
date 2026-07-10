@@ -1,21 +1,16 @@
 package com.night.backgroundchange;
 
 import androidx.appcompat.app.AppCompatActivity;
-import android.app.AlertDialog;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.widget.FrameLayout;
 
 public class MainActivity extends AppCompatActivity {
     static {
-        try {
-            System.loadLibrary("game_logic");
-        } catch (UnsatisfiedLinkError e) {
-            // Caught if the C++ library fails to load entirely
-        }
+        System.loadLibrary("game_logic");
     }
 
-    // Native methods declarations
+    // Native JNI connections
     public native String stringFromJNI();
     public native void initNativeLevel(int[] data);
     public native boolean canArrowMove(int arrowId);
@@ -28,31 +23,32 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // 🟢 GLOBAL CRASH CATCHER: Displays errors directly on your screen
-        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
-            runOnUiThread(() -> {
-                new AlertDialog.Builder(MainActivity.this)
-                    .setTitle("Runtime Crash Detected")
-                    .setMessage(throwable.toString() + "\n\nAt: " + throwable.getStackTrace()[0].toString())
-                    .setPositiveButton("Close", (dialog, which) -> finish())
-                    .setCancelable(false)
-                    .show();
-            });
-        });
-
         super.onCreate(savedInstanceState);
         
-        // Match your original initialization order exactly
-        gameEngine = new GameEngine(this, this);
+        // 1. Inflate the xml layout file FIRST so view containers have a real width/height
         setContentView(R.layout.activity_main);
 
+        // 2. Initialize the game engine and assign context safely
+        gameEngine = new GameEngine(this, this);
+
+        // 3. Bind the engine surface container to your XML file layout window
         FrameLayout container = findViewById(R.id.game_container);
-        if (container != null && gameEngine != null) {
+        if (container != null) {
             container.addView(gameEngine);
         }
 
-        clickPlayer = MediaPlayer.create(this, R.raw.click);
-        winPlayer = MediaPlayer.create(this, R.raw.completelevel);
+        // 4. Safely set up background audio streams
+        try {
+            clickPlayer = MediaPlayer.create(this, R.raw.click);
+            winPlayer = MediaPlayer.create(this, R.raw.completelevel);
+        } catch (Exception e) {
+            // Audio layout bypass placeholder
+        }
+
+        // 5. Fire up your level matrix down into the native logic engine layer
+        // Passing an initial starter map array so the game knows what to draw
+        int[] startingLevelData = {1, 0, 1, 0, 1}; 
+        initNativeLevel(startingLevelData);
     }
 
     public void playSound(boolean isWin) {
