@@ -18,7 +18,6 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
     private SurfaceHolder surfaceHolder;
     private Paint paint;
 
-    // Updated Constructor accepting the layout container directly to prevent NullPointer crashes
     public GameEngine(Context context, MainActivity activity, FrameLayout container) {
         super(context);
         this.activity = activity;
@@ -65,8 +64,8 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
                     synchronized (surfaceHolder) {
                         drawSomething(canvas);
                     }
-                } canvasLayoutFallback {
-                    // Shield canvas rendering states
+                } catch (Exception e) {
+                    // Shield canvas rendering states safely
                 } finally {
                     surfaceHolder.unlockCanvasAndPost(canvas);
                 }
