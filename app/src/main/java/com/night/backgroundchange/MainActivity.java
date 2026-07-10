@@ -10,7 +10,7 @@ public class MainActivity extends AppCompatActivity {
         System.loadLibrary("game_logic");
     }
 
-    // Native JNI connections
+    // Native JNI definitions
     public native String stringFromJNI();
     public native void initNativeLevel(int[] data);
     public native boolean canArrowMove(int arrowId);
@@ -25,29 +25,38 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // 1. Inflate layout first so screen dimensions (width/height) are active
+        // 1. Inflate layout first
         setContentView(R.layout.activity_main);
 
-        // 2. Safely initialize the game engine view with the active screen context
-        gameEngine = new GameEngine(this, this);
-
-        // 3. Find and inject the engine into your layout container XML window
-        FrameLayout container = findViewById(R.id.game_container);
-        if (container != null) {
-            container.addView(gameEngine);
-        }
-
-        // 4. Initialize media files safely
+        // 2. Setup your media assets safely
         try {
             clickPlayer = MediaPlayer.create(this, R.raw.click);
             winPlayer = MediaPlayer.create(this, R.raw.completelevel);
         } catch (Exception e) {
-            // Audio setup fallback
+            // Audio bypass layout fallback
         }
 
-        // 5. Send initial starter level data array down to C++ layer
-        int[] startingLevelData = {1, 0, 1, 0, 1}; 
-        initNativeLevel(startingLevelData);
+        // 3. Find the container view window
+        final FrameLayout container = findViewById(R.id.game_container);
+        
+        if (container != null) {
+            // 🟢 FORCE ANDROID TO WAIT UNTIL THE SCREEN IS FULLY DRAWN AND MEASURED
+            container.post(new Runnable() {
+                @Override
+                public void run() {
+                    // Create and add the game engine ONLY when the surface dimensions are ready
+                    gameEngine = new GameEngine(MainActivity.this, MainActivity.this);
+                    container.addView(gameEngine);
+
+                    // Initialize your native map structures safely inside the rendering loop
+                    int[] startingLevelData = {1, 0, 1, 0, 1}; 
+                    initNativeLevel(startingLevelData);
+                    
+                    // Resume engine processing explicitly
+                    gameEngine.resume();
+                }
+            });
+        }
     }
 
     public void playSound(boolean isWin) {
