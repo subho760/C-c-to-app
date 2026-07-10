@@ -60,6 +60,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
 
     private void loadBitmaps() {
         try {
+            // Safe assignment attempting to find your resource names
             bgBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.game_bg);
             arrowUp = BitmapFactory.decodeResource(getResources(), R.drawable.arrow_up);
             arrowDown = BitmapFactory.decodeResource(getResources(), R.drawable.arrow_down);
@@ -79,17 +80,35 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
 
         levelGrid = new int[rows][cols];
 
-        // Level Grid Presets - Structured cleanly to match your puzzle geometry mapping
+        // =================================================================
+        // 🎮 FULL PLAYABLE PUZZLE LAYOUT DEFINITIONS
+        // =================================================================
         if (level == 1) {
-            levelGrid[2][2] = 1; 
-            levelGrid[4][3] = 2; 
-            arrows.add(new Arrow(3, 4, "UP", 1));
-            blocks.add(new Block(2, 2, false));
-            blocks.add(new Block(5, 4, true)); // Added a target block marker
+            // Populate multiple blocks to build a real map frame layout
+            blocks.add(new Block(1, 1, false));
+            blocks.add(new Block(1, 4, false));
+            blocks.add(new Block(3, 2, false));
+            blocks.add(new Block(5, 3, false));
+            
+            // Add Target destination flags (Red Blocks)
+            blocks.add(new Block(7, 2, true));
+            blocks.add(new Block(7, 4, true));
+
+            // Set up our interactive arrows scattered on the grid fields
+            arrows.add(new Arrow(2, 5, "UP", 1));
+            arrows.add(new Arrow(4, 6, "LEFT", 2));
+            arrows.add(new Arrow(1, 3, "DOWN", 3));
+            arrows.add(new Arrow(3, 1, "RIGHT", 4));
+
+            // Map values directly into verification array coordinates
+            levelGrid[1][1] = 1; levelGrid[1][4] = 1; levelGrid[3][2] = 1; levelGrid[5][3] = 1;
+            levelGrid[7][2] = 3; levelGrid[7][4] = 3; 
         } else {
-            levelGrid[1][1] = 1;
-            arrows.add(new Arrow(2, 3, "RIGHT", 2));
-            blocks.add(new Block(1, 1, true));
+            // Level 2 Layout Schema Setup
+            blocks.add(new Block(2, 2, false));
+            blocks.add(new Block(4, 4, true));
+            arrows.add(new Arrow(1, 4, "RIGHT", 5));
+            levelGrid[2][2] = 1; levelGrid[4][4] = 3;
         }
 
         if (activity != null) {
@@ -102,7 +121,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             try {
                 activity.initNativeLevel(linearGrid);
             } catch (Throwable t) {
-                // Native link guard
+                // Safeguard JNI binding thresholds
             }
         }
     }
@@ -140,9 +159,10 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
-                } finally {
-                    surfaceHolder.unlockCanvasAndPost(canvas);
+                } finaly {
+                    // Protected viewport layout wrapper
                 }
+                surfaceHolder.unlockCanvasAndPost(canvas);
             }
 
             try {
@@ -157,26 +177,33 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
         for (Arrow arrow : arrows) {
             if (arrow.isMoving) {
                 arrow.updatePosition();
+                
+                // Boundaries reset check so arrows don't fly off the game screen limits
+                if (arrow.currentX < 0 || arrow.currentX >= cols || arrow.currentY < 0 || arrow.currentY >= rows) {
+                    arrow.isMoving = false;
+                    // Reset positions safely back to grid range bounds
+                    arrow.currentX = Math.max(0, Math.min(arrow.currentX, cols - 1));
+                    arrow.currentY = Math.max(0, Math.min(arrow.currentY, rows - 1));
+                }
             }
         }
     }
 
     private void renderGame(Canvas canvas) {
-        // Draw background image or a clean dark fallback grid floor
         if (bgBitmap != null) {
             canvas.drawBitmap(bgBitmap, 0, 0, null);
         } else {
-            canvas.drawColor(Color.parseColor("#111625")); // Sleek dark space background
+            canvas.drawColor(Color.parseColor("#0F1322")); // Deep premium space dark background
         }
 
         cellSize = Math.min(canvas.getWidth() / cols, canvas.getHeight() / rows);
         offsetX = (canvas.getWidth() - (cols * cellSize)) / 2;
         offsetY = (canvas.getHeight() - (rows * cellSize)) / 2;
 
-        // Visual Guide: Draw subtle board grid boundaries so you can see cell layout alignments
+        // Draw Board Grid Cells Matrix
         paint.setStyle(Paint.Style.STROKE);
-        paint.setColor(Color.parseColor("#222A45"));
-        paint.setStrokeWidth(2);
+        paint.setColor(Color.parseColor("#1D2640"));
+        paint.setStrokeWidth(3);
         for (int r = 0; r <= rows; r++) {
             canvas.drawLine(offsetX, offsetY + r * cellSize, offsetX + cols * cellSize, offsetY + r * cellSize, paint);
         }
@@ -184,7 +211,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             canvas.drawLine(offsetX + c * cellSize, offsetY, offsetX + c * cellSize, offsetY + rows * cellSize, paint);
         }
 
-        // Draw Puzzle Blocks (With clean vector fallback shapes if png bitmaps are absent!)
+        // Draw Game Puzzle Level Blocks (With Clean Rounded Box Vectors if Bitmaps are missing)
         paint.setStyle(Paint.Style.FILL);
         for (Block block : blocks) {
             Bitmap b = block.isTarget ? blockTarget : blockNormal;
@@ -194,13 +221,13 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             if (b != null) {
                 canvas.drawBitmap(b, left, top, null);
             } else {
-                // Fallback Shape: Targets are red, normal blocks are bright orange
-                paint.setColor(block.isTarget ? Color.parseColor("#E63946") : Color.parseColor("#F4A261"));
-                canvas.drawRect(left + 6, top + 6, left + cellSize - 6, top + cellSize - 6, paint);
+                // Targets = Neon Rose Red, Normal Obstacle Blocks = Smooth Amber Gold
+                paint.setColor(block.isTarget ? Color.parseColor("#EF476F") : Color.parseColor("#FFD166"));
+                canvas.drawRoundRect(left + 8, top + 8, left + cellSize - 8, top + cellSize - 8, 16, 16, paint);
             }
         }
 
-        // Draw Interactive Moving Arrows (With vector triangle configurations if image arrays missing!)
+        // Draw Directional Arrows (With Sleek Triangle Vectors if PNG files are missing)
         for (Arrow arrow : arrows) {
             Bitmap aBitmap = null;
             switch (arrow.direction) {
@@ -216,17 +243,16 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             if (aBitmap != null) {
                 canvas.drawBitmap(aBitmap, left, top, null);
             } else {
-                // Fallback Vector Shape: Clean neon-blue directional navigation triangles
-                paint.setColor(Color.parseColor("#4EA8DE"));
+                // Cyan Electric Blue Navigation Triangles
+                paint.setColor(Color.parseColor("#06D6A0"));
                 drawVectorArrow(canvas, left, top, cellSize, arrow.direction);
             }
         }
     }
 
-    // Programmatic backup generator to draw arrows directly onto canvas contexts
     private void drawVectorArrow(Canvas canvas, int left, int top, int size, String direction) {
         Path path = new Path();
-        float padding = size * 0.2f;
+        float padding = size * 0.25f;
         float centerX = left + size / 2f;
         float centerY = top + size / 2f;
 
@@ -266,7 +292,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
                     try {
                         if (activity != null) canMove = activity.canArrowMove(arrow.id);
                     } catch (Throwable t) {
-                        // JNI Protection safe fall
+                        // Safe JNI fallback metrics
                     }
 
                     if (canMove) {
@@ -298,7 +324,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {}
 
-    // Data Structures
+    // Subclasses
     public static class Arrow {
         public int id;
         public int currentX, currentY;
