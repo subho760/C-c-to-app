@@ -2,7 +2,7 @@
 #include <string>
 #include <vector>
 
-// Global array memory container to hold your game's current map matrix array data
+// Memory container to hold current level structure elements
 std::vector<int> currentLevelData;
 
 extern "C" JNIEXPORT jstring JNICALL
@@ -14,7 +14,7 @@ extern "C" JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_initNativeLevel(JNIEnv* env, jobject thiz, jintArray data) {
     if (data == nullptr) return;
 
-    // Extract length of incoming level array data
+    // Pull the length and structure elements from incoming JNI array
     jsize len = env->GetArrayLength(data);
     jint* body = env->GetIntArrayElements(data, nullptr);
 
@@ -23,17 +23,17 @@ Java_com_night_backgroundchange_MainActivity_initNativeLevel(JNIEnv* env, jobjec
         currentLevelData.push_back(body[i]);
     }
 
-    // Release JNI reference safely to avoid memory leak states
+    // Release JNI reference arrays safely to avoid leaks
     env->ReleaseIntArrayElements(data, body, JNI_ABORT);
 }
 
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_night_backgroundchange_MainActivity_canArrowMove(JNIEnv* env, jobject thiz, jint arrow_id) {
-    // Game loop layout validator logic can check against currentLevelData vector elements here
+    // Return true by default so engine layout loop processes frames smoothly
     return JNI_TRUE;
 }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_removeNativeArrow(JNIEnv* env, jobject thiz, jint arrow_id) {
-    // Level map modification tracker handler
+    // Logic updates go here
 }
