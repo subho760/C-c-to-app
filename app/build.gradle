@@ -8,27 +8,12 @@ android {
 
     defaultConfig {
         applicationId "com.night.backgroundchange"
-        minSdk 21
+        minSdk 24
         targetSdk 34
         versionCode 1
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
-
-        // Native Build Flags
-        externalNativeBuild {
-            cmake {
-                cppFlags ""
-            }
-        }
-    }
-
-    // Link Gradle to the CMake Build Rules
-    externalNativeBuild {
-        cmake {
-            path file("src/main/cpp/CMakeLists.txt")
-            version "3.22.1"
-        }
     }
 
     buildTypes {
@@ -45,12 +30,9 @@ android {
 }
 
 dependencies {
-    // Core Android Libraries
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    
-    // Testing Utilities
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
