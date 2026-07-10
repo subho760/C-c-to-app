@@ -5,6 +5,7 @@ import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 import android.graphics.Color;
@@ -41,7 +42,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // 1. Create a clean tracking overlay layout frame
+        // 1. Create a tracking overlay layout frame
         FrameLayout mainLayout = new FrameLayout(this);
         mainLayout.setBackgroundColor(Color.BLACK);
 
@@ -71,7 +72,6 @@ public class MainActivity extends AppCompatActivity {
             try {
                 logStep("Attempting to run GameEngine constructor...");
                 
-                // If this line freezes, we need to look into GameEngine.java file layout
                 gameEngine = new GameEngine(MainActivity.this, MainActivity.this);
                 
                 logStep("GameEngine instance created successfully!");
@@ -115,7 +115,7 @@ public class MainActivity extends AppCompatActivity {
                 }
 
             } catch (Throwable e) {
-                logStep("🚨 CRASH INSIDE ENGINE CORNER: " + e.toString());
+                logStep("🚨 CRASH INSIDE ENGINE: " + e.toString());
                 if (e.getCause() != null) {
                     logStep("REASON: " + e.getCause().toString());
                 }
