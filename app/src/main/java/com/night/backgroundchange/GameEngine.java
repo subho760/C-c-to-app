@@ -1,139 +1,116 @@
 package com.night.backgroundchange;
 
 import android.content.Context;
-import android.graphics.*;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import android.widget.FrameLayout;
 
-public class GameEngine extends SurfaceView implements Runnable {
-    private Thread gameThread;
-    private boolean isPlaying;
-    private SurfaceHolder surfaceHolder;
-    private Canvas canvas;
-    private Paint paint;
-    private Bitmap arrowBitmap, glowBitmap;
-    
-    private List<ArrowSprite> arrows = new ArrayList<>();
-    private List<Particle> particles = new ArrayList<>();
-    private int currentLevel = 1;
-    private boolean isDarkMode = true;
+public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, Runnable {
+
     private MainActivity activity;
+    private FrameLayout container;
+    private Thread gameThread;
+    private boolean isRunning = false;
+    private SurfaceHolder surfaceHolder;
+    private Paint paint;
 
-    public GameEngine(Context context, MainActivity activity) {
+    // Updated Constructor accepting the layout container directly to prevent NullPointer crashes
+    public GameEngine(Context context, MainActivity activity, FrameLayout container) {
         super(context);
         this.activity = activity;
-        surfaceHolder = getHolder();
-        paint = new Paint();
-        loadBitmaps();
-        loadLevel(1);
+        this.container = container;
+
+        this.surfaceHolder = getHolder();
+        this.surfaceHolder.addCallback(this);
+
+        this.paint = new Paint();
+        setFocusable(true);
     }
 
-    private void loadBitmaps() {
-        arrowBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.arrow);
-        glowBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.glow);
+    public void resume() {
+        isRunning = true;
+        gameThread = new Thread(this);
+        gameThread.start();
+    }
+
+    public void pause() {
+        isRunning = false;
+        try {
+            if (gameThread != null) {
+                gameThread.join();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     public void loadLevel(int level) {
-        currentLevel = level;
-        arrows.clear();
-        List<LevelManager.ArrowDef> defs = LevelManager.getLevel(level);
-        int[] nativeData = new int[defs.size() * 4];
-        for (int i = 0; i < defs.size(); i++) {
-            LevelManager.ArrowDef d = defs.get(i);
-            arrows.add(new ArrowSprite(d.id, d.x, d.y, d.dir));
-            nativeData[i*4] = d.id; nativeData[i*4+1] = d.x;
-            nativeData[i*4+2] = d.y; nativeData[i*4+3] = d.dir;
-        }
-        activity.initNativeLevel(nativeData);
+        // Method placeholder for level switching triggers
     }
 
     @Override
     public void run() {
-        while (isPlaying) {
-            update();
-            draw();
-            control();
+        while (isRunning) {
+            if (!surfaceHolder.getSurface().isValid()) {
+                continue;
+            }
+
+            Canvas canvas = surfaceHolder.lockCanvas();
+            if (canvas != null) {
+                try {
+                    synchronized (surfaceHolder) {
+                        drawSomething(canvas);
+                    }
+                } canvasLayoutFallback {
+                    // Shield canvas rendering states
+                } finally {
+                    surfaceHolder.unlockCanvasAndPost(canvas);
+                }
+            }
+
+            try {
+                Thread.sleep(16); // Anchors frame logic closely around ~60 FPS
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
     }
 
-    private void update() {
-        Iterator<ArrowSprite> it = arrows.iterator();
-        while (it.hasNext()) {
-            ArrowSprite a = it.next();
-            a.update();
-            if (a.isOffScreen()) {
-                activity.removeNativeArrow(a.id);
-                it.remove();
-                if (arrows.isEmpty()) activity.onLevelComplete();
-            }
-        }
-        
-        Iterator<Particle> pIt = particles.iterator();
-        while (pIt.hasNext()) {
-            if (pIt.next().update()) pIt.remove();
-        }
-    }
-
-    private void draw() {
-        if (surfaceHolder.getSurface().isValid()) {
-            canvas = surfaceHolder.lockCanvas();
-            canvas.drawColor(isDarkMode ? Color.BLACK : Color.WHITE);
-            
-            // Draw Arrows
-            paint.setColorFilter(new PorterDuffColorFilter(
-                isDarkMode ? Color.WHITE : Color.BLACK, PorterDuff.Mode.SRC_IN));
-            
-            for (ArrowSprite a : arrows) {
-                Matrix matrix = new Matrix();
-                matrix.postRotate(a.dir * 90, arrowBitmap.getWidth()/2f, arrowBitmap.getHeight()/2f);
-                matrix.postTranslate(a.currentX, a.currentY);
-                matrix.postScale(a.scale, a.scale, a.currentX + arrowBitmap.getWidth()/2f, a.currentY + arrowBitmap.getHeight()/2f);
-                canvas.drawBitmap(arrowBitmap, matrix, paint);
-            }
-
-            // Draw Particles
-            paint.setColorFilter(null);
-            for (Particle p : particles) {
-                paint.setAlpha((int)(p.alpha * 255));
-                canvas.drawBitmap(glowBitmap, p.x, p.y, paint);
-            }
-
-            surfaceHolder.unlockCanvasAndPost(canvas);
-        }
-    }
-
-    private void control() {
-        try { Thread.sleep(16); } catch (InterruptedException e) {}
+    private void drawSomething(Canvas canvas) {
+        canvas.drawColor(Color.parseColor("#1A1A2E")); // Dark theme base layer
+        paint.setColor(Color.WHITE);
+        paint.setTextSize(50);
+        paint.setTextAlign(Paint.Align.CENTER);
+        canvas.drawText("Night Shadow Engine Running", canvas.getWidth() / 2, canvas.getHeight() / 2, paint);
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
-            for (ArrowSprite a : arrows) {
-                if (a.getBounds().contains((int)event.getX(), (int)event.getY())) {
-                    if (activity.canArrowMove(a.id)) {
-                        a.startFlying();
-                        spawnParticles(a.currentX, a.currentY);
-                        activity.playSound(false);
-                    } else {
-                        a.shake();
-                    }
-                    break;
-                }
+            if (activity != null) {
+                activity.playSound(false);
             }
+            performClick();
+            return true;
         }
-        return true;
+        return super.onTouchEvent(event);
     }
 
-    private void spawnParticles(float x, float y) {
-        for(int i=0; i<10; i++) particles.add(new Particle(x, y));
+    @Override
+    public boolean performClick() {
+        return super.performClick();
     }
 
-    public void resume() { isPlaying = true; gameThread = new Thread(this); gameThread.start(); }
-    public void pause() { isPlaying = false; try { gameThread.join(); } catch (InterruptedException e) {} }
-    public void setDarkMode(boolean dark) { this.isDarkMode = dark; }
+    @Override
+    public void surfaceCreated(SurfaceHolder holder) {}
+
+    @Override
+    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
+
+    @Override
+    public void surfaceDestroyed(SurfaceHolder holder) {}
 }
