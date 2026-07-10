@@ -1,21 +1,24 @@
 package com.night.backgroundchange;
 
-import androidx.appcompat.app.AppCompatActivity;
-import android.os.Bundle;
-import android.widget.FrameLayout;
-import android.widget.TextView;
-import android.graphics.Color;
+// Changed from androidx.appcompat.app.AppCompatActivity to standard android.app.Activity
+import android.app.Activity;
 import android.media.MediaPlayer;
+import android.os.Bundle;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+import android.view.View;
+import android.widget.FrameLayout;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends Activity {
     static {
         try {
             System.loadLibrary("game_logic");
         } catch (Throwable t) {
-            // Handled inside onCreate safely
+            // Prevent class-loading crashes if library is missing
         }
     }
 
+    // Native JNI Bridges
     public native String stringFromJNI();
     public native void initNativeLevel(int[] data);
     public native boolean canArrowMove(int arrowId);
@@ -24,62 +27,83 @@ public class MainActivity extends AppCompatActivity {
     private GameEngine gameEngine;
     private MediaPlayer clickPlayer;
     private MediaPlayer winPlayer;
+    private boolean soundEnabled = true;
+    private boolean isSurfaceReady = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // 1. Inflate your activity layout window
+        setContentView(R.layout.activity_main);
 
-        // 1. Create a clean, simple text window to show us what happens
-        TextView errorDisplay = new TextView(this);
-        errorDisplay.setTextColor(Color.WHITE);
-        errorDisplay.setTextSize(16);
-        errorDisplay.setPadding(50, 100, 50, 50);
-        errorDisplay.setText("Checking app files... Please wait.");
-        setContentView(errorDisplay);
-
+        // 2. Load background sound streams safely
         try {
-            // 2. Load layout files safely
-            setContentView(R.layout.activity_main);
-            
-            FrameLayout container = findViewById(R.id.game_container);
-            if (container == null) {
-                errorDisplay.setText("❌ Error: Could not find 'game_container' in activity_main.xml layout file.");
-                setContentView(errorDisplay);
-                return;
-            }
+            clickPlayer = MediaPlayer.create(this, R.raw.click);
+            winPlayer = MediaPlayer.create(this, R.raw.completelevel);
+        } catch (Exception e) {
+            // Audio fail fallback
+        }
 
-            // 3. Try to start the GameEngine
+        // 3. Bind the layout container to the GameEngine
+        final FrameLayout container = findViewById(R.id.game_container);
+        
+        if (container != null) {
+            gameEngine = new GameEngine(this, this);
+            container.addView(gameEngine);
+
+            // 4. Initialize native level parameters
             try {
-                gameEngine = new GameEngine(this, this);
-                container.addView(gameEngine);
-            } catch (Throwable engineError) {
-                errorDisplay.setText("❌ The app is freezing inside GameEngine.java!\n\nDetails:\n" + engineError.toString());
-                setContentView(errorDisplay);
-                return;
+                int[] secureStarterGrid = new int[200]; 
+                for (int i = 0; i < secureStarterGrid.length; i++) {
+                    secureStarterGrid[i] = 1; 
+                }
+                initNativeLevel(secureStarterGrid);
+            } catch (Throwable nativeError) {
+                // Prevent C++ bridge crashes
             }
 
-            // 4. Set up audio files safely
-            try {
-                clickPlayer = MediaPlayer.create(this, R.raw.click);
-                winPlayer = MediaPlayer.create(this, R.raw.completelevel);
-            } catch (Exception e) {
-                // Keep moving if sound files are missing
-            }
+            // 5. Safe Surface Synchronization Lifecycle
+            if (gameEngine instanceof SurfaceView) {
+                SurfaceHolder holder = ((SurfaceView) gameEngine).getHolder();
+                holder.addCallback(new SurfaceHolder.Callback() {
+                    @Override
+                    public void surfaceCreated(SurfaceHolder holder) {
+                        isSurfaceReady = true;
+                        if (gameEngine != null) {
+                            gameEngine.resume();
+                        }
+                    }
 
-            // 5. Fire up the game loop
-            if (gameEngine != null) {
-                gameEngine.resume();
-            }
+                    @Override
+                    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
 
-        } catch (Throwable overallError) {
-            errorDisplay.setText("❌ App Setup Failed!\n\nError Message:\n" + overallError.toString());
-            setContentView(errorDisplay);
+                    @Override
+                    public void surfaceDestroyed(SurfaceHolder holder) {
+                        isSurfaceReady = false;
+                        if (gameEngine != null) {
+                            gameEngine.pause();
+                        }
+                    }
+                });
+            } else {
+                container.post(() -> {
+                    isSurfaceReady = true;
+                    if (gameEngine != null) {
+                        gameEngine.resume();
+                    }
+                });
+            }
         }
     }
 
     public void playSound(boolean isWin) {
-        if (isWin && winPlayer != null) winPlayer.start();
-        if (!isWin && clickPlayer != null) clickPlayer.start();
+        if (!soundEnabled) return;
+        if (isWin) {
+            if (winPlayer != null) winPlayer.start();
+        } else {
+            if (clickPlayer != null) clickPlayer.start();
+        }
     }
 
     public void onLevelComplete() {
@@ -94,7 +118,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (gameEngine != null) {
+        if (gameEngine != null && isSurfaceReady) {
             gameEngine.resume();
         }
     }
