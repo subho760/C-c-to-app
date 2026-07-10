@@ -1,12 +1,10 @@
 package com.night.backgroundchange;
 
-// Changed from androidx.appcompat.app.AppCompatActivity to standard android.app.Activity
 import android.app.Activity;
 import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.view.View;
 import android.widget.FrameLayout;
 
 public class MainActivity extends Activity {
@@ -14,11 +12,11 @@ public class MainActivity extends Activity {
         try {
             System.loadLibrary("game_logic");
         } catch (Throwable t) {
-            // Prevent class-loading crashes if library is missing
+            // Prevent crashes if the library isn't found
         }
     }
 
-    // Native JNI Bridges
+    // Native JNI definitions
     public native String stringFromJNI();
     public native void initNativeLevel(int[] data);
     public native boolean canArrowMove(int arrowId);
@@ -34,66 +32,63 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // 1. Inflate your activity layout window
-        setContentView(R.layout.activity_main);
+        // 1. Create a raw container frame entirely in code (bypassing XML requirements)
+        FrameLayout rootContainer = new FrameLayout(this);
+        setContentView(rootContainer);
 
-        // 2. Load background sound streams safely
+        // 2. Safely initialize the game engine view surface
+        gameEngine = new GameEngine(this, this);
+        rootContainer.addView(gameEngine);
+
+        // 3. Set up background sound assets inside clean error catches
         try {
             clickPlayer = MediaPlayer.create(this, R.raw.click);
             winPlayer = MediaPlayer.create(this, R.raw.completelevel);
         } catch (Exception e) {
-            // Audio fail fallback
+            // Safe fallback if audio resources are missing
         }
 
-        // 3. Bind the layout container to the GameEngine
-        final FrameLayout container = findViewById(R.id.game_container);
-        
-        if (container != null) {
-            gameEngine = new GameEngine(this, this);
-            container.addView(gameEngine);
-
-            // 4. Initialize native level parameters
-            try {
-                int[] secureStarterGrid = new int[200]; 
-                for (int i = 0; i < secureStarterGrid.length; i++) {
-                    secureStarterGrid[i] = 1; 
-                }
-                initNativeLevel(secureStarterGrid);
-            } catch (Throwable nativeError) {
-                // Prevent C++ bridge crashes
+        // 4. Initialize native level parameters right away
+        try {
+            int[] secureStarterGrid = new int[200]; 
+            for (int i = 0; i < secureStarterGrid.length; i++) {
+                secureStarterGrid[i] = 1; 
             }
+            initNativeLevel(secureStarterGrid);
+        } catch (Throwable nativeError) {
+            // Safety guard for C++ bridge allocations
+        }
 
-            // 5. Safe Surface Synchronization Lifecycle
-            if (gameEngine instanceof SurfaceView) {
-                SurfaceHolder holder = ((SurfaceView) gameEngine).getHolder();
-                holder.addCallback(new SurfaceHolder.Callback() {
-                    @Override
-                    public void surfaceCreated(SurfaceHolder holder) {
-                        isSurfaceReady = true;
-                        if (gameEngine != null) {
-                            gameEngine.resume();
-                        }
-                    }
-
-                    @Override
-                    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
-
-                    @Override
-                    public void surfaceDestroyed(SurfaceHolder holder) {
-                        isSurfaceReady = false;
-                        if (gameEngine != null) {
-                            gameEngine.pause();
-                        }
-                    }
-                });
-            } else {
-                container.post(() -> {
+        // 5. Explicitly handle surface generation lifecycle states
+        if (gameEngine instanceof SurfaceView) {
+            SurfaceHolder holder = ((SurfaceView) gameEngine).getHolder();
+            holder.addCallback(new SurfaceHolder.Callback() {
+                @Override
+                public void surfaceCreated(SurfaceHolder holder) {
                     isSurfaceReady = true;
                     if (gameEngine != null) {
                         gameEngine.resume();
                     }
-                });
-            }
+                }
+
+                @Override
+                public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
+
+                @Override
+                public void surfaceDestroyed(SurfaceHolder holder) {
+                    isSurfaceReady = false;
+                    if (gameEngine != null) {
+                        gameEngine.pause();
+                    }
+                }
+            });
+        } else {
+            rootContainer.post(() -> {
+                isSurfaceReady = true;
+                if (gameEngine != null) {
+                    gameEngine.resume();
+                }
+            });
         }
     }
 
