@@ -25,28 +25,27 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // 1. Inflate the xml layout file FIRST so view containers have a real width/height
+        // 1. Inflate layout first so screen dimensions (width/height) are active
         setContentView(R.layout.activity_main);
 
-        // 2. Initialize the game engine and assign context safely
+        // 2. Safely initialize the game engine view with the active screen context
         gameEngine = new GameEngine(this, this);
 
-        // 3. Bind the engine surface container to your XML file layout window
+        // 3. Find and inject the engine into your layout container XML window
         FrameLayout container = findViewById(R.id.game_container);
         if (container != null) {
             container.addView(gameEngine);
         }
 
-        // 4. Safely set up background audio streams
+        // 4. Initialize media files safely
         try {
             clickPlayer = MediaPlayer.create(this, R.raw.click);
             winPlayer = MediaPlayer.create(this, R.raw.completelevel);
         } catch (Exception e) {
-            // Audio layout bypass placeholder
+            // Audio setup fallback
         }
 
-        // 5. Fire up your level matrix down into the native logic engine layer
-        // Passing an initial starter map array so the game knows what to draw
+        // 5. Send initial starter level data array down to C++ layer
         int[] startingLevelData = {1, 0, 1, 0, 1}; 
         initNativeLevel(startingLevelData);
     }
