@@ -5,18 +5,21 @@ import android.media.MediaPlayer;
 import android.os.Bundle;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
+import android.view.View;
+import android.widget.Button;
 import android.widget.FrameLayout;
+import android.graphics.Color;
 
 public class MainActivity extends Activity {
     static {
         try {
             System.loadLibrary("game_logic");
         } catch (Throwable t) {
-            // Prevent crashes if the library isn't found
+            // Prevent initialization load failures from crashing the class tracker
         }
     }
 
-    // Native JNI definitions
+    // Native C++ methods
     public native String stringFromJNI();
     public native void initNativeLevel(int[] data);
     public native boolean canArrowMove(int arrowId);
@@ -32,64 +35,85 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // 1. Create a raw container frame entirely in code (bypassing XML requirements)
-        FrameLayout rootContainer = new FrameLayout(this);
+        // 1. Create a pure programmatic layout container
+        final FrameLayout rootContainer = new FrameLayout(this);
+        rootContainer.setBackgroundColor(Color.parseColor("#121212")); // Safe Dark Background
         setContentView(rootContainer);
 
-        // 2. Safely initialize the game engine view surface
-        gameEngine = new GameEngine(this, this);
-        rootContainer.addView(gameEngine);
+        // 2. Add a fallback diagnostic layout button
+        final Button startButton = new Button(this);
+        startButton.setText("🚀 START NIGHT SHADOW GAME ENGINE");
+        startButton.setBackgroundColor(Color.DKGRAY);
+        startButton.setTextColor(Color.WHITE);
+        
+        // Position button cleanly in the middle of the screen
+        FrameLayout.LayoutParams btnParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+        );
+        btnParams.gravity = android.view.Gravity.CENTER;
+        startButton.setLayoutParams(btnParams);
+        rootContainer.addView(startButton);
 
-        // 3. Set up background sound assets inside clean error catches
+        // 3. Audio asset loader wrapper
         try {
             clickPlayer = MediaPlayer.create(this, R.raw.click);
             winPlayer = MediaPlayer.create(this, R.raw.completelevel);
         } catch (Exception e) {
-            // Safe fallback if audio resources are missing
+            // Keep going if files are absent
         }
 
-        // 4. Initialize native level parameters right away
-        try {
-            int[] secureStarterGrid = new int[200]; 
-            for (int i = 0; i < secureStarterGrid.length; i++) {
-                secureStarterGrid[i] = 1; 
+        // 4. Fire up the game engine ONLY when the button is clicked!
+        startButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                try {
+                    // Hide the button so the engine can draw fully
+                    startButton.setVisibility(View.GONE);
+
+                    // Initialize game layout structures dynamically
+                    gameEngine = new GameEngine(MainActivity.this, MainActivity.this);
+                    rootContainer.addView(gameEngine);
+
+                    // Initialize JNI level data array matrix down in C++ logic
+                    int[] secureStarterGrid = new int[200]; 
+                    for (int i = 0; i < secureStarterGrid.length; i++) {
+                        secureStarterGrid[i] = 1; 
+                    }
+                    initNativeLevel(secureStarterGrid);
+
+                    // Synchronize surface view callback handlers
+                    if (gameEngine instanceof SurfaceView) {
+                        SurfaceHolder holder = ((SurfaceView) gameEngine).getHolder();
+                        holder.addCallback(new SurfaceHolder.Callback() {
+                            @Override
+                            public void surfaceCreated(SurfaceHolder holder) {
+                                isSurfaceReady = true;
+                                if (gameEngine != null) gameEngine.resume();
+                            }
+
+                            @Override
+                            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
+
+                            @Override
+                            public void surfaceDestroyed(SurfaceHolder holder) {
+                                isSurfaceReady = false;
+                                if (gameEngine != null) gameEngine.pause();
+                            }
+                        });
+                    } else {
+                        rootContainer.post(() -> {
+                            isSurfaceReady = true;
+                            if (gameEngine != null) gameEngine.resume();
+                        });
+                    }
+                } catch (Throwable engineCrash) {
+                    // If clicking the button crashes the app, the issue is 100% inside GameEngine.java
+                    startButton.setVisibility(View.VISIBLE);
+                    startButton.setText("❌ Error in GameEngine! " + engineCrash.getMessage());
+                }
             }
-            initNativeLevel(secureStarterGrid);
-        } catch (Throwable nativeError) {
-            // Safety guard for C++ bridge allocations
-        }
-
-        // 5. Explicitly handle surface generation lifecycle states
-        if (gameEngine instanceof SurfaceView) {
-            SurfaceHolder holder = ((SurfaceView) gameEngine).getHolder();
-            holder.addCallback(new SurfaceHolder.Callback() {
-                @Override
-                public void surfaceCreated(SurfaceHolder holder) {
-                    isSurfaceReady = true;
-                    if (gameEngine != null) {
-                        gameEngine.resume();
-                    }
-                }
-
-                @Override
-                public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
-
-                @Override
-                public void surfaceDestroyed(SurfaceHolder holder) {
-                    isSurfaceReady = false;
-                    if (gameEngine != null) {
-                        gameEngine.pause();
-                    }
-                }
-            });
-        } else {
-            rootContainer.post(() -> {
-                isSurfaceReady = true;
-                if (gameEngine != null) {
-                    gameEngine.resume();
-                }
-            });
-        }
+        });
     }
 
     public void playSound(boolean isWin) {
