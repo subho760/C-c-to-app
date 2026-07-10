@@ -25,7 +25,6 @@ public class MainActivity extends AppCompatActivity {
     private boolean soundEnabled = true;
     private boolean isSurfaceReady = false;
     
-    // Step logger
     private TextView statusTracker;
     private StringBuilder statusLog = new StringBuilder();
 
@@ -42,7 +41,7 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // 1. Force tracking view layout immediately to see text on screen
+        // 1. Create a clean tracking overlay layout frame
         FrameLayout mainLayout = new FrameLayout(this);
         mainLayout.setBackgroundColor(Color.BLACK);
 
@@ -50,98 +49,78 @@ public class MainActivity extends AppCompatActivity {
         statusTracker.setTextColor(Color.GREEN);
         statusTracker.setTextSize(14);
         statusTracker.setPadding(40, 80, 40, 40);
-        statusTracker.setText("Initializing diagnostics...\n");
+        statusTracker.setText("Starting detailed GameEngine checks...\n");
         
-        // This container will hold the game view beneath our text
         FrameLayout gameContainer = new FrameLayout(this);
-        gameContainer.setId(View.generateViewId());
-        
         mainLayout.addView(gameContainer);
-        mainLayout.addView(statusTracker); // Keeps text visible on top!
+        mainLayout.addView(statusTracker); 
         setContentView(mainLayout);
 
-        logStep("App opened. Main tracking overlay active.");
+        logStep("MainActivity started safely.");
 
-        // 2. Test JNI connection
+        // 2. Test JNI Connection
         try {
             String jniCheck = stringFromJNI();
-            logStep("JNI Connected successfully: " + jniCheck);
+            logStep("Native JNI Handshake: " + jniCheck);
         } catch (Throwable t) {
-            logStep("FAILED JNI LINK: " + t.getMessage());
+            logStep("JNI Handshake skipped: " + t.getMessage());
         }
 
-        // 3. Load audio streams
-        try {
-            clickPlayer = MediaPlayer.create(this, R.raw.click);
-            winPlayer = MediaPlayer.create(this, R.raw.completelevel);
-            logStep("Audio assets loaded cleanly.");
-        } catch (Exception e) {
-            logStep("Audio initialization skipped or missing files.");
-        }
+        // 3. Run the GameEngine creation inside a monitored UI runner sequence
+        runOnUiThread(() -> {
+            try {
+                logStep("Attempting to run GameEngine constructor...");
+                
+                // If this line freezes, we need to look into GameEngine.java file layout
+                gameEngine = new GameEngine(MainActivity.this, MainActivity.this);
+                
+                logStep("GameEngine instance created successfully!");
+                gameContainer.addView(gameEngine);
+                logStep("GameEngine view added to container frame.");
 
-        // 4. Fire up the game engine view instance
-        try {
-            logStep("Instantiating GameEngine layout view...");
-            gameEngine = new GameEngine(this, this);
-            gameContainer.addView(gameEngine);
-            logStep("GameEngine view successfully appended to layout hierarchy.");
-        } catch (Throwable engineError) {
-            logStep("CRASH INSIDE ENGINE CONSTRUCTOR: " + engineError.getMessage());
-        }
+                // 4. Initialize level data mapping arrays
+                int[] secureStarterGrid = new int[200]; 
+                for (int i = 0; i < secureStarterGrid.length; i++) {
+                    secureStarterGrid[i] = 1; 
+                }
+                initNativeLevel(secureStarterGrid);
+                logStep("Native level data matrix synced safely.");
 
-        // 5. Send parameters to C++
-        try {
-            int[] secureStarterGrid = new int[200]; 
-            for (int i = 0; i < secureStarterGrid.length; i++) {
-                secureStarterGrid[i] = 1; 
-            }
-            initNativeLevel(secureStarterGrid);
-            logStep("Initial 200-element tracking matrix sent down to C++ layer.");
-        } catch (Throwable nativeError) {
-            logStep("Native matrix array sync failed.");
-        }
+                // 5. Setup View callbacks
+                if (gameEngine instanceof SurfaceView) {
+                    logStep("SurfaceView detected. Assigning hardware holder hooks...");
+                    SurfaceHolder holder = ((SurfaceView) gameEngine).getHolder();
+                    holder.addCallback(new SurfaceHolder.Callback() {
+                        @Override
+                        public void surfaceCreated(SurfaceHolder holder) {
+                            isSurfaceReady = true;
+                            logStep("Surface created! Resuming engine thread loop...");
+                            gameEngine.resume();
+                        }
 
-        // 6. Monitor hardware surface creation
-        if (gameEngine instanceof SurfaceView) {
-            logStep("Detected SurfaceView design architecture. Awaiting hardware callback...");
-            SurfaceHolder holder = ((SurfaceView) gameEngine).getHolder();
-            holder.addCallback(new SurfaceHolder.Callback() {
-                @Override
-                public void surfaceCreated(SurfaceHolder holder) {
+                        @Override
+                        public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
+
+                        @Override
+                        public void surfaceDestroyed(SurfaceHolder holder) {
+                            isSurfaceReady = false;
+                            gameEngine.pause();
+                        }
+                    });
+                } else {
+                    logStep("Standard view wrapper detected. Directing thread startup sequence...");
                     isSurfaceReady = true;
-                    logStep("Hardware surface generated by system. Triggering loop activation...");
-                    try {
-                        gameEngine.resume();
-                        logStep("gameEngine.resume() invoked successfully!");
-                    } catch (Throwable t) {
-                        logStep("Error loop hanging inside engine.resume(): " + t.getMessage());
-                    }
-                }
-
-                @Override
-                public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-                    logStep("Surface layout resized to: " + width + "x" + height);
-                }
-
-                @Override
-                public void surfaceDestroyed(SurfaceHolder holder) {
-                    isSurfaceReady = false;
-                    logStep("Surface view window torn down.");
-                    if (gameEngine != null) {
-                        gameEngine.pause();
-                    }
-                }
-            });
-        } else {
-            logStep("Standard custom view architecture detected. Initializing post-draw sequence.");
-            gameContainer.post(() -> {
-                isSurfaceReady = true;
-                if (gameEngine != null) {
                     gameEngine.resume();
-                    logStep("Engine thread resume loop started via layout delay path.");
+                    logStep("Engine thread resume loop executed.");
                 }
-            });
-        }
+
+            } catch (Throwable e) {
+                logStep("🚨 CRASH INSIDE ENGINE CORNER: " + e.toString());
+                if (e.getCause() != null) {
+                    logStep("REASON: " + e.getCause().toString());
+                }
+            }
+        });
     }
 
     public void playSound(boolean isWin) {
