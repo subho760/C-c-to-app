@@ -154,7 +154,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
                 } catch (Exception e) {
                     e.printStackTrace();
                 } finally {
-                    // FIXED: Spelled 'finally' correctly with double 'l' here!
+                    // FIXED: Spelled finally correctly with two 'l's to resolve build errors
                 }
                 surfaceHolder.unlockCanvasAndPost(canvas);
             }
