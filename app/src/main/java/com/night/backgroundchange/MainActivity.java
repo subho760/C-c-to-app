@@ -6,13 +6,20 @@ import android.os.Bundle;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.widget.FrameLayout;
+import android.widget.TextView;
+import android.widget.ScrollView;
+import android.graphics.Color;
 
 public class MainActivity extends AppCompatActivity {
     static {
-        System.loadLibrary("game_logic");
+        try {
+            System.loadLibrary("game_logic");
+        } catch (Throwable e) {
+            // Handled directly inside onCreate diagnostics
+        }
     }
 
-    // Native JNI connections
+    // Native JNI definitions
     public native String stringFromJNI();
     public native void initNativeLevel(int[] data);
     public native boolean canArrowMove(int arrowId);
@@ -26,67 +33,125 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        
-        // 1. Inflate the XML layout window immediately
-        setContentView(R.layout.activity_main);
+        // 1. 🟢 THE ON-SCREEN CRASH DIAGNOSTIC LOGGER ENGINE
+        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+            runOnUiThread(() -> {
+                ScrollView scrollView = new ScrollView(MainActivity.this);
+                scrollView.setBackgroundColor(Color.parseColor("#2A0000"));
+                scrollView.setPadding(30, 50, 30, 50);
 
-        // 2. Set up background sound assets safely
+                TextView errorText = new TextView(MainActivity.this);
+                errorText.setTextColor(Color.RED);
+                errorText.setTextSize(16);
+                errorText.setTypeface(android.graphics.Typeface.MONOSPACE);
+
+                StringBuilder sb = new StringBuilder();
+                sb.append("🚨 --- ACTIVE RUNTIME EXCEPTION CAUGHT ---\n\n");
+                sb.append("ERROR TYPE:\n").append(throwable.toString()).append("\n\n");
+                
+                if (throwable.getStackTrace().length > 0) {
+                    sb.append("EXACT LOCATION OF FAILURE:\n")
+                      .append("File: ").append(throwable.getStackTrace()[0].getFileName()).append("\n")
+                      .append("Class: ").append(throwable.getStackTrace()[0].getClassName()).append("\n")
+                      .append("Method: ").append(throwable.getStackTrace()[0].getMethodName()).append("\n")
+                      .append("Line Number: ").append(throwable.getStackTrace()[0].getLineNumber()).append("\n\n");
+                }
+
+                sb.append("FULL STACK TRACE LOG:\n");
+                for (StackTraceElement element : throwable.getStackTrace()) {
+                    sb.append("   at ").append(element.toString()).append("\n");
+                }
+
+                errorText.setText(sb.toString());
+                scrollView.addView(errorText);
+                setContentView(scrollView);
+            });
+        });
+
+        super.onCreate(savedInstanceState);
+
+        // Try-catch block specifically to detect missing C++ library linkages on launch
+        try {
+            stringFromJNI();
+        } catch (UnsatisfiedLinkError jniError) {
+            throw new RuntimeException("C++ Shared Library Linkage Error! The game engine methods do not match the compiled C++ code structures.", jniError);
+        }
+
+        // 2. Inflate the XML layout window immediately
+        try {
+            setContentView(R.layout.activity_main);
+        } catch (Throwable layoutError) {
+            throw new RuntimeException("Layout Inflation Failed! Check your activity_main.xml layout configuration file.", layoutError);
+        }
+
+        // 3. Set up background sound assets safely
         try {
             clickPlayer = MediaPlayer.create(this, R.raw.click);
             winPlayer = MediaPlayer.create(this, R.raw.completelevel);
         } catch (Exception e) {
-            // Audio layout fallback
+            // Safe fallback if audio is missing
         }
 
-        // 3. Find your layout view container
+        // 4. Find your layout view container
         final FrameLayout container = findViewById(R.id.game_container);
         
-        if (container != null) {
-            // 4. Create the game engine view surface
+        if (container == null) {
+            throw new RuntimeException("Missing View ID! Could not find R.id.game_container inside your activity_main.xml file.");
+        }
+
+        // 5. Create and attach the game engine view surface
+        try {
             gameEngine = new GameEngine(this, this);
             container.addView(gameEngine);
+        } catch (Throwable engineError) {
+            throw new RuntimeException("Crash inside GameEngine Constructor initialization wrapper!", engineError);
+        }
 
-            // 5. Initialize native level parameters right away
+        // 6. Initialize native level parameters right away
+        try {
             int[] secureStarterGrid = new int[200]; 
             for (int i = 0; i < secureStarterGrid.length; i++) {
                 secureStarterGrid[i] = 1; 
             }
             initNativeLevel(secureStarterGrid);
+        } catch (Throwable nativeError) {
+            throw new RuntimeException("Crash while transferring level matrix configuration data down into the C++ layer.", nativeError);
+        }
 
-            // 6. 🟢 SAFE SYNCHRONIZATION: Listen for the hardware surface to be ready
-            if (gameEngine instanceof SurfaceView) {
-                SurfaceHolder holder = ((SurfaceView) gameEngine).getHolder();
-                holder.addCallback(new SurfaceHolder.Callback() {
-                    @Override
-                    public void surfaceCreated(SurfaceHolder holder) {
-                        isSurfaceReady = true;
-                        // Start the drawing thread ONLY when the surface is physically built
-                        if (gameEngine != null) {
-                            gameEngine.resume();
-                        }
-                    }
-
-                    @Override
-                    public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-                        // Responding to dimension switches if needed
-                    }
-
-                    @Override
-                    public void surfaceDestroyed(SurfaceHolder holder) {
-                        isSurfaceReady = false;
-                        if (gameEngine != null) {
-                            gameEngine.pause();
-                        }
-                    }
-                });
-            } else {
-                // Fallback if GameEngine is a standard Custom View instead of a SurfaceView
-                container.post(() -> {
+        // 7. Synchronize thread surface drawing executions
+        if (gameEngine instanceof SurfaceView) {
+            SurfaceHolder holder = ((SurfaceView) gameEngine).getHolder();
+            holder.addCallback(new SurfaceHolder.Callback() {
+                @Override
+                public void surfaceCreated(SurfaceHolder holder) {
                     isSurfaceReady = true;
+                    if (gameEngine != null) {
+                        try {
+                            gameEngine.resume();
+                        } catch (Throwable t) {
+                            throw new RuntimeException("Crash within GameEngine.resume() thread start loop during surface setup!", t);
+                        }
+                    }
+                }
+
+                @Override
+                public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
+
+                @Override
+                public void surfaceDestroyed(SurfaceHolder holder) {
+                    isSurfaceReady = false;
+                    if (gameEngine != null) {
+                        gameEngine.pause();
+                    }
+                }
+            });
+        } else {
+            container.post(() -> {
+                isSurfaceReady = true;
+                if (gameEngine != null) {
                     gameEngine.resume();
-                });
-            }
+                }
+            });
         }
     }
 
@@ -111,7 +176,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        // Only resume if the hardware surface is ready to draw frames
         if (gameEngine != null && isSurfaceReady) {
             gameEngine.resume();
         }
