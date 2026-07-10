@@ -27,6 +27,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
         this.surfaceHolder.addCallback(this);
 
         this.paint = new Paint();
+        paint.setAntiAlias(true);
         setFocusable(true);
     }
 
@@ -48,7 +49,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
     }
 
     public void loadLevel(int level) {
-        // Method placeholder for level switching triggers
+        // Place your level loading configuration logic here
     }
 
     @Override
@@ -62,37 +63,51 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             if (canvas != null) {
                 try {
                     synchronized (surfaceHolder) {
-                        drawSomething(canvas);
+                        // Update game states and handle drawing tasks
+                        renderGame(canvas);
                     }
                 } catch (Exception e) {
-                    // Shield canvas rendering states safely
+                    e.printStackTrace();
                 } finally {
                     surfaceHolder.unlockCanvasAndPost(canvas);
                 }
             }
 
             try {
-                Thread.sleep(16); // Anchors frame logic closely around ~60 FPS
+                Thread.sleep(16); // Lock at 60 Frames Per Second smoothly
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
         }
     }
 
-    private void drawSomething(Canvas canvas) {
-        canvas.drawColor(Color.parseColor("#1A1A2E")); // Dark theme base layer
+    private void renderGame(Canvas canvas) {
+        // Clear screen with a dark aesthetic theme color
+        canvas.drawColor(Color.parseColor("#121214")); 
+
+        // =================================================================
+        // 🛠️ DEVELOPER NOTE: PLACE YOUR GAME DRAWING LOGIC HERE!
+        // You can use 'canvas.drawBitmap' or 'canvas.drawRect' to draw
+        // your puzzle arrows, background graphics, and level items.
+        // =================================================================
+
         paint.setColor(Color.WHITE);
-        paint.setTextSize(50);
+        paint.setTextSize(55);
         paint.setTextAlign(Paint.Align.CENTER);
-        canvas.drawText("Night Shadow Engine Running", canvas.getWidth() / 2, canvas.getHeight() / 2, paint);
+        canvas.drawText("Night Shadow Game Activated", canvas.getWidth() / 2, canvas.getHeight() / 2, paint);
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
+            float touchX = event.getX();
+            float touchY = event.getY();
+
+            // Handle arrow tap mechanics or JNI boundary check moves here
             if (activity != null) {
-                activity.playSound(false);
+                activity.playSound(false); // Play click audio stream tracking click behavior
             }
+            
             performClick();
             return true;
         }
