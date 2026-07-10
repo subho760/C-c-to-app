@@ -54,14 +54,13 @@ jobs:
             mv "$file" "${file// /_}"
           done
 
-      # 🟢 FIXED: Decodes your SIGNING_KEY secret accurately into the root app directory
       - name: Decrypt and Initialize Production Keystore File
         run: |
           mkdir -p app/app
           echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > app/Night_Shadow_Main_Key.jks
           cp app/Night_Shadow_Main_Key.jks app/app/Night_Shadow_Main_Key.jks
 
-      # 🟢 FIXED: Corrected KEYSTORE_PASSWORD variable target and absolute path definitions
+      # 🟢 FIXED: Changed path variables to use full environment workspace targets so Gradle can always resolve them
       - name: Compile and Sign Release Artifacts (APK & AAB)
         shell: bash
         env:
@@ -71,8 +70,8 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleRelease -Pandroid.injected.signing.store.file=$KEYSTORE_PATH -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD -Pandroid.injected.signing.key.alias=$KEY_ALIAS -Pandroid.injected.signing.key.password=$KEY_PASSWORD
-          ./gradlew bundleRelease -Pandroid.injected.signing.store.file=$KEYSTORE_PATH -Pandroid.injected.signing.store.password=$KEYSTORE_PASSWORD -Pandroid.injected.signing.key.alias=$KEY_ALIAS -Pandroid.injected.signing.key.password=$KEY_PASSWORD
+          ./gradlew assembleRelease -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" -Pandroid.injected.signing.key.alias="$KEY_ALIAS" -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
+          ./gradlew bundleRelease -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" -Pandroid.injected.signing.store.password="$KEYSTORE_PASSWORD" -Pandroid.injected.signing.key.alias="$KEY_ALIAS" -Pandroid.injected.signing.key.password="$KEY_PASSWORD"
 
       - name: Aggregate and Upload Application Packages
         uses: actions/upload-artifact@v4
