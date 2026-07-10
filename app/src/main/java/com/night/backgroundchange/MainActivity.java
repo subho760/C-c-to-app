@@ -7,19 +7,13 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.widget.FrameLayout;
 import android.widget.TextView;
-import android.widget.ScrollView;
 import android.graphics.Color;
 
 public class MainActivity extends AppCompatActivity {
     static {
-        try {
-            System.loadLibrary("game_logic");
-        } catch (Throwable e) {
-            // Handled directly inside onCreate diagnostics
-        }
+        System.loadLibrary("game_logic");
     }
 
-    // Native JNI definitions
     public native String stringFromJNI();
     public native void initNativeLevel(int[] data);
     public native boolean canArrowMove(int arrowId);
@@ -30,126 +24,121 @@ public class MainActivity extends AppCompatActivity {
     private MediaPlayer winPlayer;
     private boolean soundEnabled = true;
     private boolean isSurfaceReady = false;
+    
+    // Step logger
+    private TextView statusTracker;
+    private StringBuilder statusLog = new StringBuilder();
+
+    private void logStep(String message) {
+        runOnUiThread(() -> {
+            statusLog.append("✔ ").append(message).append("\n");
+            if (statusTracker != null) {
+                statusTracker.setText(statusLog.toString());
+            }
+        });
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        // 1. 🟢 THE ON-SCREEN CRASH DIAGNOSTIC LOGGER ENGINE
-        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
-            runOnUiThread(() -> {
-                ScrollView scrollView = new ScrollView(MainActivity.this);
-                scrollView.setBackgroundColor(Color.parseColor("#2A0000"));
-                scrollView.setPadding(30, 50, 30, 50);
-
-                TextView errorText = new TextView(MainActivity.this);
-                errorText.setTextColor(Color.RED);
-                errorText.setTextSize(16);
-                errorText.setTypeface(android.graphics.Typeface.MONOSPACE);
-
-                StringBuilder sb = new StringBuilder();
-                sb.append("🚨 --- ACTIVE RUNTIME EXCEPTION CAUGHT ---\n\n");
-                sb.append("ERROR TYPE:\n").append(throwable.toString()).append("\n\n");
-                
-                if (throwable.getStackTrace().length > 0) {
-                    sb.append("EXACT LOCATION OF FAILURE:\n")
-                      .append("File: ").append(throwable.getStackTrace()[0].getFileName()).append("\n")
-                      .append("Class: ").append(throwable.getStackTrace()[0].getClassName()).append("\n")
-                      .append("Method: ").append(throwable.getStackTrace()[0].getMethodName()).append("\n")
-                      .append("Line Number: ").append(throwable.getStackTrace()[0].getLineNumber()).append("\n\n");
-                }
-
-                sb.append("FULL STACK TRACE LOG:\n");
-                for (StackTraceElement element : throwable.getStackTrace()) {
-                    sb.append("   at ").append(element.toString()).append("\n");
-                }
-
-                errorText.setText(sb.toString());
-                scrollView.addView(errorText);
-                setContentView(scrollView);
-            });
-        });
-
         super.onCreate(savedInstanceState);
+        
+        // 1. Force tracking view layout immediately to see text on screen
+        FrameLayout mainLayout = new FrameLayout(this);
+        mainLayout.setBackgroundColor(Color.BLACK);
 
-        // Try-catch block specifically to detect missing C++ library linkages on launch
+        statusTracker = new TextView(this);
+        statusTracker.setTextColor(Color.GREEN);
+        statusTracker.setTextSize(14);
+        statusTracker.setPadding(40, 80, 40, 40);
+        statusTracker.setText("Initializing diagnostics...\n");
+        
+        // This container will hold the game view beneath our text
+        FrameLayout gameContainer = new FrameLayout(this);
+        gameContainer.setId(View.generateViewId());
+        
+        mainLayout.addView(gameContainer);
+        mainLayout.addView(statusTracker); // Keeps text visible on top!
+        setContentView(mainLayout);
+
+        logStep("App opened. Main tracking overlay active.");
+
+        // 2. Test JNI connection
         try {
-            stringFromJNI();
-        } catch (UnsatisfiedLinkError jniError) {
-            throw new RuntimeException("C++ Shared Library Linkage Error! The game engine methods do not match the compiled C++ code structures.", jniError);
+            String jniCheck = stringFromJNI();
+            logStep("JNI Connected successfully: " + jniCheck);
+        } catch (Throwable t) {
+            logStep("FAILED JNI LINK: " + t.getMessage());
         }
 
-        // 2. Inflate the XML layout window immediately
-        try {
-            setContentView(R.layout.activity_main);
-        } catch (Throwable layoutError) {
-            throw new RuntimeException("Layout Inflation Failed! Check your activity_main.xml layout configuration file.", layoutError);
-        }
-
-        // 3. Set up background sound assets safely
+        // 3. Load audio streams
         try {
             clickPlayer = MediaPlayer.create(this, R.raw.click);
             winPlayer = MediaPlayer.create(this, R.raw.completelevel);
+            logStep("Audio assets loaded cleanly.");
         } catch (Exception e) {
-            // Safe fallback if audio is missing
+            logStep("Audio initialization skipped or missing files.");
         }
 
-        // 4. Find your layout view container
-        final FrameLayout container = findViewById(R.id.game_container);
-        
-        if (container == null) {
-            throw new RuntimeException("Missing View ID! Could not find R.id.game_container inside your activity_main.xml file.");
-        }
-
-        // 5. Create and attach the game engine view surface
+        // 4. Fire up the game engine view instance
         try {
+            logStep("Instantiating GameEngine layout view...");
             gameEngine = new GameEngine(this, this);
-            container.addView(gameEngine);
+            gameContainer.addView(gameEngine);
+            logStep("GameEngine view successfully appended to layout hierarchy.");
         } catch (Throwable engineError) {
-            throw new RuntimeException("Crash inside GameEngine Constructor initialization wrapper!", engineError);
+            logStep("CRASH INSIDE ENGINE CONSTRUCTOR: " + engineError.getMessage());
         }
 
-        // 6. Initialize native level parameters right away
+        // 5. Send parameters to C++
         try {
             int[] secureStarterGrid = new int[200]; 
             for (int i = 0; i < secureStarterGrid.length; i++) {
                 secureStarterGrid[i] = 1; 
             }
             initNativeLevel(secureStarterGrid);
+            logStep("Initial 200-element tracking matrix sent down to C++ layer.");
         } catch (Throwable nativeError) {
-            throw new RuntimeException("Crash while transferring level matrix configuration data down into the C++ layer.", nativeError);
+            logStep("Native matrix array sync failed.");
         }
 
-        // 7. Synchronize thread surface drawing executions
+        // 6. Monitor hardware surface creation
         if (gameEngine instanceof SurfaceView) {
+            logStep("Detected SurfaceView design architecture. Awaiting hardware callback...");
             SurfaceHolder holder = ((SurfaceView) gameEngine).getHolder();
             holder.addCallback(new SurfaceHolder.Callback() {
                 @Override
                 public void surfaceCreated(SurfaceHolder holder) {
                     isSurfaceReady = true;
-                    if (gameEngine != null) {
-                        try {
-                            gameEngine.resume();
-                        } catch (Throwable t) {
-                            throw new RuntimeException("Crash within GameEngine.resume() thread start loop during surface setup!", t);
-                        }
+                    logStep("Hardware surface generated by system. Triggering loop activation...");
+                    try {
+                        gameEngine.resume();
+                        logStep("gameEngine.resume() invoked successfully!");
+                    } catch (Throwable t) {
+                        logStep("Error loop hanging inside engine.resume(): " + t.getMessage());
                     }
                 }
 
                 @Override
-                public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
+                public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                    logStep("Surface layout resized to: " + width + "x" + height);
+                }
 
                 @Override
                 public void surfaceDestroyed(SurfaceHolder holder) {
                     isSurfaceReady = false;
+                    logStep("Surface view window torn down.");
                     if (gameEngine != null) {
                         gameEngine.pause();
                     }
                 }
             });
         } else {
-            container.post(() -> {
+            logStep("Standard custom view architecture detected. Initializing post-draw sequence.");
+            gameContainer.post(() -> {
                 isSurfaceReady = true;
                 if (gameEngine != null) {
                     gameEngine.resume();
+                    logStep("Engine thread resume loop started via layout delay path.");
                 }
             });
         }
