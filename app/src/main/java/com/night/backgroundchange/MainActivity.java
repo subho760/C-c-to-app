@@ -27,21 +27,22 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // 1. Inflate layout first to ensure view instances exist
+        // 1. Inflate the layout instantly
         setContentView(R.layout.activity_main);
 
-        // 2. Setup media assets inside safety catch blocks
+        // 2. Set up sound streams safely
         try {
             clickPlayer = MediaPlayer.create(this, R.raw.click);
             winPlayer = MediaPlayer.create(this, R.raw.completelevel);
         } catch (Exception e) {
-            // Audio layout bypass logic
+            // Audio layout fallback
         }
 
-        // 3. Bind view rendering components safely
+        // 3. Obtain the layout view container safely
         final FrameLayout container = findViewById(R.id.game_container);
         
         if (container != null) {
+            // Wait until the layout container has real dimensions assigned
             container.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
                 @Override
                 public void onGlobalLayout() {
@@ -53,22 +54,21 @@ public class MainActivity extends AppCompatActivity {
                     if (width > 0 && height > 0) {
                         isEngineInitialized = true;
 
-                        // 🟢 INITIALIZE NATIVE MATRIX MEMORY BEFORE CREATING GAME VIEWS
-                        // Provide a comprehensive safe initial level grid map array to prevent engine reading mismatch 
+                        // Send a reliable initial allocation matrix size to the JNI layer
                         int[] secureStarterGrid = new int[200]; 
-                        for(int i = 0; i < secureStarterGrid.length; i++) {
-                            secureStarterGrid[i] = 1; // Populate with generic block item data values
+                        for (int i = 0; i < secureStarterGrid.length; i++) {
+                            secureStarterGrid[i] = 1; 
                         }
                         initNativeLevel(secureStarterGrid);
 
-                        // Now create the drawing engine safely
+                        // Create the engine view with verified layout dimensions
                         gameEngine = new GameEngine(MainActivity.this, MainActivity.this);
                         container.addView(gameEngine);
                         
-                        // Force thread activation
+                        // Kickstart drawing engine loops
                         gameEngine.resume();
 
-                        // Clean layout listeners safely
+                        // Safely discard the layout listener callback loop
                         container.getViewTreeObserver().removeOnGlobalLayoutListener(this);
                     }
                 }
@@ -110,4 +110,3 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 }
-cn
