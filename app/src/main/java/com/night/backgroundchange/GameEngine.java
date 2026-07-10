@@ -16,13 +16,13 @@ import java.util.List;
 public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, Runnable {
 
     private MainActivity activity;
-    private FrameLayout container; // Safely assigned via constructor parameter
+    private FrameLayout container; 
     private Thread gameThread;
     private boolean isRunning = false;
     private SurfaceHolder surfaceHolder;
     private Paint paint;
 
-    // Game states, grids, metrics, and asset variables
+    // Original Game State Parameters
     private int currentLevel = 1;
     private int[][] levelGrid;
     private List<Arrow> arrows;
@@ -33,17 +33,16 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
     private int offsetX;
     private int offsetY;
 
-    // Bitmap Asset References
+    // Bitmaps
     private Bitmap bgBitmap;
     private Bitmap arrowUp, arrowDown, arrowLeft, arrowRight;
     private Bitmap blockNormal, blockTarget;
 
-    // --- SOLVED CONSTRUCTOR ---
-    // Instead of looking for a layout ID from XML, it receives the direct reference safely
+    // --- CLEAN REPAIRED CONSTRUCTOR ---
     public GameEngine(Context context, MainActivity activity, FrameLayout container) {
         super(context);
         this.activity = activity;
-        this.container = container;
+        this.container = container; // Assigned cleanly from MainActivity parameters!
 
         this.surfaceHolder = getHolder();
         this.surfaceHolder.addCallback(this);
@@ -52,14 +51,10 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
         this.paint.setAntiAlias(true);
         setFocusable(true);
 
-        // Initialize Lists
         this.arrows = new ArrayList<>();
         this.blocks = new ArrayList<>();
 
-        // Load asset images safely from resources
         loadBitmaps();
-
-        // Initialize the first level structures
         loadLevel(currentLevel);
     }
 
@@ -82,13 +77,11 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
         arrows.clear();
         blocks.clear();
 
-        // Level grid allocation array layout mapping logic
         levelGrid = new int[rows][cols];
 
-        // Hardcoded example fallback grid structure mapping puzzle setups
         if (level == 1) {
-            levelGrid[2][2] = 1; // Block
-            levelGrid[4][3] = 2; // Arrow setup
+            levelGrid[2][2] = 1; 
+            levelGrid[4][3] = 2; 
             arrows.add(new Arrow(3, 4, "UP", 1));
             blocks.add(new Block(2, 2, false));
         } else {
@@ -97,7 +90,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             blocks.add(new Block(1, 1, true));
         }
 
-        // Notify JNI layer down in C++ framework of data updates
+        // Matched cleanly with your original native call signature parameters
         if (activity != null) {
             int[] linearGrid = new int[rows * cols];
             for (int r = 0; r < rows; r++) {
@@ -108,7 +101,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             try {
                 activity.initNativeLevel(linearGrid);
             } catch (Throwable t) {
-                // Handle native library sync boundaries
+                // Shield native initialization mismatch bounds
             }
         }
     }
@@ -146,13 +139,14 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
-                } finally {
-                    surfaceHolder.unlockCanvasAndPost(canvas);
+                } finaly {
+                    // Safe execution
                 }
+                surfaceHolder.unlockCanvasAndPost(canvas);
             }
 
             try {
-                Thread.sleep(16); // ~60 FPS Loop
+                Thread.sleep(16); 
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
@@ -160,7 +154,6 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
     }
 
     private void updateGameLogic() {
-        // Handle physical movements, collision matrix, and speed transitions
         for (Arrow arrow : arrows) {
             if (arrow.isMoving) {
                 arrow.updatePosition();
@@ -169,19 +162,16 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
     }
 
     private void renderGame(Canvas canvas) {
-        // 1. Draw Background asset scaling to frame measurements
         if (bgBitmap != null) {
             canvas.drawBitmap(bgBitmap, 0, 0, null);
         } else {
             canvas.drawColor(Color.parseColor("#1A1A2E"));
         }
 
-        // Calculate dynamic dimensions layout anchors
         cellSize = Math.min(canvas.getWidth() / cols, canvas.getHeight() / rows);
         offsetX = (canvas.getWidth() - (cols * cellSize)) / 2;
         offsetY = (canvas.getHeight() - (rows * cellSize)) / 2;
 
-        // 2. Draw puzzle blocks grids layer
         for (Block block : blocks) {
             Bitmap b = block.isTarget ? blockTarget : blockNormal;
             if (b != null) {
@@ -189,7 +179,6 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             }
         }
 
-        // 3. Draw active arrow components layers
         for (Arrow arrow : arrows) {
             Bitmap aBitmap = null;
             switch (arrow.direction) {
@@ -210,24 +199,22 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             float tx = event.getX();
             float ty = event.getY();
 
-            // Calculate grid touch locations back to matrix positions
             int clickedCol = (int) ((tx - offsetX) / cellSize);
             int clickedRow = (int) ((ty - offsetY) / cellSize);
 
             for (Arrow arrow : arrows) {
                 if (arrow.currentX == clickedCol && arrow.currentY == clickedRow && !arrow.isMoving) {
-                    // Check logic constraints against native C++ rules before moving
                     boolean canMove = true;
                     try {
                         if (activity != null) canMove = activity.canArrowMove(arrow.id);
                     } catch (Throwable t) {
-                        // JNI protection fallback
+                        // Safe tracking fallback
                     }
 
                     if (canMove) {
                         arrow.isMoving = true;
                         if (activity != null) {
-                            activity.playSound(false); // Action select audio chime
+                            activity.playSound(false); 
                         }
                     }
                     break;
@@ -253,21 +240,21 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {}
 
-    // --- SUB-CLASS DATA CONTROLLERS ---
-    private static class Arrow {
-        int id;
-        int currentX, currentY;
-        String direction;
-        boolean isMoving = false;
+    // --- REPAIRED STRUCTURAL SUBCLASSES ---
+    public static class Arrow {
+        public int id;
+        public int currentX, currentY;
+        public String direction;
+        public boolean isMoving = false;
 
-        Arrow(int x, int y, String dir, int id) {
+        public Arrow(int x, int y, String dir, int id) {
             this.currentX = x;
             this.currentY = y;
             this.direction = dir;
             this.id = id;
         }
 
-        void updatePosition() {
+        public void updatePosition() {
             switch (direction) {
                 case "UP": currentY--; break;
                 case "DOWN": currentY++; break;
@@ -277,11 +264,11 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
         }
     }
 
-    private static class Block {
-        int row, col;
-        boolean isTarget;
+    public static class Block {
+        public int row, col;
+        public boolean isTarget;
 
-        Block(int r, int c, boolean t) {
+        public Block(int r, int c, boolean t) {
             this.row = r;
             this.col = c;
             this.isTarget = t;
