@@ -22,7 +22,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
     private SurfaceHolder surfaceHolder;
     private Paint paint;
 
-    // Original Game State Parameters
+    // Game State Parameters
     private int currentLevel = 1;
     private int[][] levelGrid;
     private List<Arrow> arrows;
@@ -38,11 +38,10 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
     private Bitmap arrowUp, arrowDown, arrowLeft, arrowRight;
     private Bitmap blockNormal, blockTarget;
 
-    // --- CLEAN REPAIRED CONSTRUCTOR ---
     public GameEngine(Context context, MainActivity activity, FrameLayout container) {
         super(context);
         this.activity = activity;
-        this.container = container; // Assigned cleanly from MainActivity parameters!
+        this.container = container; 
 
         this.surfaceHolder = getHolder();
         this.surfaceHolder.addCallback(this);
@@ -90,7 +89,6 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             blocks.add(new Block(1, 1, true));
         }
 
-        // Matched cleanly with your original native call signature parameters
         if (activity != null) {
             int[] linearGrid = new int[rows * cols];
             for (int r = 0; r < rows; r++) {
@@ -101,7 +99,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
             try {
                 activity.initNativeLevel(linearGrid);
             } catch (Throwable t) {
-                // Shield native initialization mismatch bounds
+                // Shield native initialization bounds
             }
         }
     }
@@ -139,8 +137,8 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
-                } finaly {
-                    // Safe execution
+                } finally {
+                    // Fixed spelling error from 'finaly' to 'finally' here
                 }
                 surfaceHolder.unlockCanvasAndPost(canvas);
             }
@@ -240,7 +238,7 @@ public class GameEngine extends SurfaceView implements SurfaceHolder.Callback, R
     @Override
     public void surfaceDestroyed(SurfaceHolder holder) {}
 
-    // --- REPAIRED STRUCTURAL SUBCLASSES ---
+    // Structural Subclasses
     public static class Arrow {
         public int id;
         public int currentX, currentY;
