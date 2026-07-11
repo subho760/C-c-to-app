@@ -30,6 +30,12 @@ struct Particle {
     float x, y, vx, vy, life;
 };
 
+struct AssetData {
+    jobject bitmapObj;
+    int width;
+    int height;
+};
+
 class GameEngine {
 public:
     GameState state = MENU;
@@ -40,7 +46,7 @@ public:
 
     std::vector<Arrow> arrows;
     std::vector<Particle> particles;
-    std::map<std::string, jobject> assets;
+    std::map<std::string, AssetData> assets;
     
     float tileSize;
     float offsetX, offsetY;
@@ -124,17 +130,27 @@ public:
 
 static GameEngine engine;
 
-void drawBitmap(JNIEnv* env, jobject canvas, jobject bitmap, float x, float y, float scale, float rotation) {
-    if (!bitmap || !engine.globalMatrixObj) return;
+void drawBitmap(JNIEnv* env, jobject canvas, const std::string& assetName, float targetX, float targetY, float targetW, float targetH, float rotation) {
+    auto it = engine.assets.find(assetName);
+    if (it == engine.assets.end() || !engine.globalMatrixObj) return;
     
-    float centerX = 50.0f;
-    float centerY = 50.0f;
+    AssetData data = it->second;
+    if (!data.bitmapObj) return;
+
+    float origW = (float)data.width;
+    float origH = (float)data.height;
+
+    float scaleX = targetW / origW;
+    float scaleY = targetH / origH;
+
+    float centerX = origW / 2.0f;
+    float centerY = origH / 2.0f;
     
     env->CallVoidMethod(engine.globalMatrixObj, engine.setRotateMid, (jfloat)rotation, (jfloat)centerX, (jfloat)centerY);
-    env->CallBooleanMethod(engine.globalMatrixObj, engine.postScaleMid, (jfloat)scale, (jfloat)scale, (jfloat)centerX, (jfloat)centerY);
-    env->CallBooleanMethod(engine.globalMatrixObj, engine.postTranslateMid, (jfloat)x, (jfloat)y);
+    env->CallBooleanMethod(engine.globalMatrixObj, engine.postScaleMid, (jfloat)scaleX, (jfloat)scaleY, (jfloat)centerX, (jfloat)centerY);
+    env->CallBooleanMethod(engine.globalMatrixObj, engine.postTranslateMid, (jfloat)targetX, (jfloat)targetY);
     
-    env->CallVoidMethod(canvas, engine.drawBitmapMid, bitmap, engine.globalMatrixObj, nullptr);
+    env->CallVoidMethod(canvas, engine.drawBitmapMid, data.bitmapObj, engine.globalMatrixObj, nullptr);
 }
 
 extern "C" {
@@ -166,9 +182,13 @@ Java_com_night_backgroundchange_MainActivity_initNative(JNIEnv* env, jobject obj
 }
 
 JNIEXPORT void JNICALL
-Java_com_night_backgroundchange_MainActivity_loadNativeAsset(JNIEnv* env, jobject obj, jstring name, jobject bitmap) {
+Java_com_night_backgroundchange_MainActivity_loadNativeAsset(JNIEnv* env, jobject obj, jstring name, jobject bitmap, jint w, jint h) {
     const char* nativeName = env->GetStringUTFChars(name, 0);
-    engine.assets[std::string(nativeName)] = env->NewGlobalRef(bitmap);
+    AssetData data;
+    data.bitmapObj = env->NewGlobalRef(bitmap);
+    data.width = w;
+    data.height = h;
+    engine.assets[std::string(nativeName)] = data;
     env->ReleaseStringUTFChars(name, nativeName);
 }
 
@@ -206,16 +226,19 @@ Java_com_night_backgroundchange_MainActivity_updateAndRenderNative(JNIEnv* env, 
             }
 
             if (!a.isRemoving) {
-                drawBitmap(env, canvas, engine.assets["tile"], 
+                drawBitmap(env, canvas, "tile", 
                            engine.offsetX + a.gridX * engine.tileSize, 
                            engine.offsetY + a.gridY * engine.tileSize, 
-                           engine.tileSize / 100.0f, 0.0f);
+                           engine.tileSize, engine.tileSize, 0.0f);
             }
 
-            drawBitmap(env, canvas, engine.assets["arrow"], 
-                       engine.offsetX + a.currentX * engine.tileSize, 
-                       engine.offsetY + a.currentY * engine.tileSize, 
-                       (engine.tileSize / 100.0f) * a.scale, (float)a.dir);
+            float currentSize = engine.tileSize * a.scale;
+            float shift = (engine.tileSize - currentSize) / 2.0f;
+
+            drawBitmap(env, canvas, "arrow", 
+                       engine.offsetX + a.currentX * engine.tileSize + shift, 
+                       engine.offsetY + a.currentY * engine.tileSize + shift, 
+                       currentSize, currentSize, (float)a.dir);
         }
         
         if (allCleared) {
@@ -223,24 +246,46 @@ Java_com_night_backgroundchange_MainActivity_updateAndRenderNative(JNIEnv* env, 
             engine.triggerSound(1);
         }
     } else if (engine.state == MENU) {
-        drawBitmap(env, canvas, engine.assets["play"], engine.screenW / 2.0f - 50.0f, engine.screenH / 2.0f - 50.0f, 1.0f, 0.0f);
+        float btnSize = engine.screenW * 0.35f;
+        drawBitmap(env, canvas, "play", 
+                   (engine.screenW - btnSize) / 2.0f, 
+                   (engine.screenH - btnSize) / 2.0f, 
+                   btnSize, btnSize, 0.0f);
     } else if (engine.state == VICTORY) {
-        drawBitmap(env, canvas, engine.assets["star"], engine.screenW / 2.0f - 50.0f, engine.screenH / 3.0f, 1.0f, 0.0f);
-        drawBitmap(env, canvas, engine.assets["next"], engine.screenW / 2.0f - 50.0f, engine.screenH / 2.0f + 100.0f, 1.0f, 0.0f);
+        float starSize = engine.screenW * 0.4f;
+        float btnSize = engine.screenW * 0.3f;
+        drawBitmap(env, canvas, "star", 
+                   (engine.screenW - starSize) / 2.0f, 
+                   engine.screenH * 0.25f, 
+                   starSize, starSize, 0.0f);
+        drawBitmap(env, canvas, "next", 
+                   (engine.screenW - btnSize) / 2.0f, 
+                   engine.screenH * 0.6f, 
+                   btnSize, btnSize, 0.0f);
     }
 }
 
 JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_handleTouchNative(JNIEnv* env, jobject obj, jfloat x, jfloat y) {
     if (engine.state == MENU) {
-        engine.state = PLAYING;
+        float btnSize = engine.screenW * 0.35f;
+        float bx = (engine.screenW - btnSize) / 2.0f;
+        float by = (engine.screenH - btnSize) / 2.0f;
+        if (x >= bx && x <= bx + btnSize && y >= by && y <= by + btnSize) {
+            engine.state = PLAYING;
+        }
         return;
     }
     
     if (engine.state == VICTORY) {
-        engine.level++;
-        engine.initLevel();
-        engine.state = PLAYING;
+        float btnSize = engine.screenW * 0.3f;
+        float bx = (engine.screenW - btnSize) / 2.0f;
+        float by = engine.screenH * 0.6f;
+        if (x >= bx && x <= bx + btnSize && y >= by && y <= by + btnSize) {
+            engine.level++;
+            engine.initLevel();
+            engine.state = PLAYING;
+        }
         return;
     }
 
