@@ -125,8 +125,8 @@ void drawBitmap(JNIEnv* env, jobject canvas, jobject bitmap, float x, float y, f
     float centerY = 50.0f;
     
     env->CallVoidMethod(engine.globalMatrixObj, engine.setRotateMid, (jfloat)rotation, (jfloat)centerX, (jfloat)centerY);
-    env->CallVoidMethod(engine.globalMatrixObj, engine.postScaleMid, (jfloat)scale, (jfloat)scale, (jfloat)centerX, (jfloat)centerY);
-    env->CallVoidMethod(engine.globalMatrixObj, engine.postTranslateMid, (jfloat)x, (jfloat)y);
+    env->CallBooleanMethod(engine.globalMatrixObj, engine.postScaleMid, (jfloat)scale, (jfloat)scale, (jfloat)centerX, (jfloat)centerY);
+    env->CallBooleanMethod(engine.globalMatrixObj, engine.postTranslateMid, (jfloat)x, (jfloat)y);
     
     env->CallVoidMethod(canvas, engine.drawBitmapMid, bitmap, engine.globalMatrixObj, nullptr);
 }
@@ -149,8 +149,8 @@ Java_com_night_backgroundchange_MainActivity_initNative(JNIEnv* env, jobject obj
     engine.drawColorMid = env->GetMethodID(engine.canvasClass, "drawColor", "(I)V");
     
     engine.setRotateMid = env->GetMethodID(engine.matrixClass, "setRotate", "(FFF)V");
-    engine.postScaleMid = env->GetMethodID(engine.matrixClass, "postScale", "(FFFF)V");
-    engine.postTranslateMid = env->GetMethodID(engine.matrixClass, "postTranslate", "(FF)V");
+    engine.postScaleMid = env->GetMethodID(engine.matrixClass, "postScale", "(FFFF)Z");
+    engine.postTranslateMid = env->GetMethodID(engine.matrixClass, "postTranslate", "(FF)Z");
 
     jobject localMatrix = env->NewObject(engine.matrixClass, engine.matrixInitMid);
     engine.globalMatrixObj = env->NewGlobalRef(localMatrix);
