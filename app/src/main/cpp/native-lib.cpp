@@ -11,10 +11,6 @@
 enum Direction { UP = 0, RIGHT = 90, DOWN = 180, LEFT = 270 };
 enum GameState { MENU, PLAYING, SETTINGS, VICTORY };
 
-struct Vec2 {
-    float x, y;
-};
-
 struct Arrow {
     int id;
     int gridX, gridY;
@@ -24,10 +20,6 @@ struct Arrow {
     float alpha = 1.0f;
     bool isRemoving = false;
     bool isRemoved = false;
-};
-
-struct Particle {
-    float x, y, vx, vy, life;
 };
 
 struct AssetData {
@@ -45,7 +37,6 @@ public:
     bool soundOn = true;
 
     std::vector<Arrow> arrows;
-    std::vector<Particle> particles;
     std::map<std::string, AssetData> assets;
     
     float tileSize;
@@ -55,16 +46,12 @@ public:
     JNIEnv* lastEnv;
     jobject mainActivityObj;
     jclass canvasClass;
-    jclass matrixClass;
-    jobject globalMatrixObj = nullptr;
     jmethodID drawBitmapMid, drawColorMid;
-    jmethodID setRotateMid, postScaleMid, postTranslateMid, matrixInitMid;
 
     GameEngine() {}
 
     void initLevel() {
         arrows.clear();
-        particles.clear();
         gridW = 3 + (level / 5);
         gridH = 4 + (level / 5);
         if (gridW > 7) gridW = 7;
@@ -124,33 +111,22 @@ public:
         if (!soundOn) return;
         jclass clazz = lastEnv->GetObjectClass(mainActivityObj);
         jmethodID mid = lastEnv->GetMethodID(clazz, "playSound", "(I)V");
-        lastEnv->CallVoidMethod(mainActivityObj, mid, type);
+        if (mid) {
+            lastEnv->CallVoidMethod(mainActivityObj, mid, type);
+        }
     }
 };
 
 static GameEngine engine;
 
-void drawBitmap(JNIEnv* env, jobject canvas, const std::string& assetName, float targetX, float targetY, float targetW, float targetH, float rotation) {
+void drawBitmapSimple(JNIEnv* env, jobject canvas, const std::string& assetName, float x, float y) {
     auto it = engine.assets.find(assetName);
-    if (it == engine.assets.end() || !engine.globalMatrixObj) return;
+    if (it == engine.assets.end()) return;
     
     AssetData data = it->second;
-    if (!data.bitmapObj) return;
-
-    float origW = (float)data.width;
-    float origH = (float)data.height;
-
-    float scaleX = targetW / origW;
-    float scaleY = targetH / origH;
-
-    float centerX = origW / 2.0f;
-    float centerY = origH / 2.0f;
+    if (!data.bitmapObj || !engine.drawBitmapMid) return;
     
-    env->CallVoidMethod(engine.globalMatrixObj, engine.setRotateMid, (jfloat)rotation, (jfloat)centerX, (jfloat)centerY);
-    env->CallVoidMethod(engine.globalMatrixObj, engine.postScaleMid, (jfloat)scaleX, (jfloat)scaleY, (jfloat)centerX, (jfloat)centerY);
-    env->CallVoidMethod(engine.globalMatrixObj, engine.postTranslateMid, (jfloat)targetX, (jfloat)targetY);
-    
-    env->CallVoidMethod(canvas, engine.drawBitmapMid, data.bitmapObj, engine.globalMatrixObj, nullptr);
+    env->CallVoidMethod(canvas, engine.drawBitmapMid, data.bitmapObj, (jfloat)x, (jfloat)y, nullptr);
 }
 
 extern "C" {
@@ -163,30 +139,8 @@ Java_com_night_backgroundchange_MainActivity_initNative(JNIEnv* env, jobject obj
     jclass canvasCls = env->FindClass("android/graphics/Canvas");
     engine.canvasClass = (jclass)env->NewGlobalRef(canvasCls);
     
-    jclass matrixCls = env->FindClass("android/graphics/Matrix");
-    engine.matrixClass = (jclass)env->NewGlobalRef(matrixCls);
-    
-    engine.matrixInitMid = env->GetMethodID(engine.matrixClass, "<init>", "()V");
-    engine.drawBitmapMid = env->GetMethodID(engine.canvasClass, "drawBitmap", "(Landroid/graphics/Bitmap;Landroid/graphics/Matrix;Landroid/graphics/Paint;)V");
     engine.drawColorMid = env->GetMethodID(engine.canvasClass, "drawColor", "(I)V");
-    
-    engine.setRotateMid = env->GetMethodID(engine.matrixClass, "setRotate", "(FFF)V");
-    
-    engine.postScaleMid = env->GetMethodID(engine.matrixClass, "postScale", "(FFFF)Z");
-    if (!engine.postScaleMid) {
-        env->ExceptionClear();
-        engine.postScaleMid = env->GetMethodID(engine.matrixClass, "postScale", "(FFFF)V");
-    }
-
-    engine.postTranslateMid = env->GetMethodID(engine.matrixClass, "postTranslate", "(FF)Z");
-    if (!engine.postTranslateMid) {
-        env->ExceptionClear();
-        engine.postTranslateMid = env->GetMethodID(engine.matrixClass, "postTranslate", "(FF)V");
-    }
-
-    jobject localMatrix = env->NewObject(engine.matrixClass, engine.matrixInitMid);
-    engine.globalMatrixObj = env->NewGlobalRef(localMatrix);
-    env->DeleteLocalRef(localMatrix);
+    engine.drawBitmapMid = env->GetMethodID(engine.canvasClass, "drawBitmap", "(Landroid/graphics/Bitmap;FFLandroid/graphics/Paint;)V");
 
     engine.initLevel();
 }
@@ -213,8 +167,10 @@ JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_updateAndRenderNative(JNIEnv* env, jobject obj, jobject canvas) {
     engine.lastEnv = env;
     
-    int bgColor = engine.darkTheme ? 0xFF121212 : 0xFFF0F0F0;
-    env->CallVoidMethod(canvas, engine.drawColorMid, bgColor);
+    if (engine.drawColorMid) {
+        int bgColor = engine.darkTheme ? 0xFF121212 : 0xFFF0F0F0;
+        env->CallVoidMethod(canvas, engine.drawColorMid, bgColor);
+    }
 
     if (engine.state == PLAYING) {
         bool allCleared = true;
@@ -236,19 +192,14 @@ Java_com_night_backgroundchange_MainActivity_updateAndRenderNative(JNIEnv* env, 
             }
 
             if (!a.isRemoving) {
-                drawBitmap(env, canvas, "tile", 
-                           engine.offsetX + a.gridX * engine.tileSize, 
-                           engine.offsetY + a.gridY * engine.tileSize, 
-                           engine.tileSize, engine.tileSize, 0.0f);
+                drawBitmapSimple(env, canvas, "tile", 
+                                 engine.offsetX + a.gridX * engine.tileSize, 
+                                 engine.offsetY + a.gridY * engine.tileSize);
             }
 
-            float currentSize = engine.tileSize * a.scale;
-            float shift = (engine.tileSize - currentSize) / 2.0f;
-
-            drawBitmap(env, canvas, "arrow", 
-                       engine.offsetX + a.currentX * engine.tileSize + shift, 
-                       engine.offsetY + a.currentY * engine.tileSize + shift, 
-                       currentSize, currentSize, (float)a.dir);
+            drawBitmapSimple(env, canvas, "arrow", 
+                             engine.offsetX + a.currentX * engine.tileSize, 
+                             engine.offsetY + a.currentY * engine.tileSize);
         }
         
         if (allCleared) {
@@ -256,42 +207,35 @@ Java_com_night_backgroundchange_MainActivity_updateAndRenderNative(JNIEnv* env, 
             engine.triggerSound(1);
         }
     } else if (engine.state == MENU) {
-        float btnSize = engine.screenW * 0.35f;
-        drawBitmap(env, canvas, "play", 
-                   (engine.screenW - btnSize) / 2.0f, 
-                   (engine.screenH - btnSize) / 2.0f, 
-                   btnSize, btnSize, 0.0f);
+        float bx = (engine.screenW - 200.0f) / 2.0f;
+        float by = (engine.screenH - 200.0f) / 2.0f;
+        drawBitmapSimple(env, canvas, "play", bx, by);
     } else if (engine.state == VICTORY) {
-        float starSize = engine.screenW * 0.4f;
-        float btnSize = engine.screenW * 0.3f;
-        drawBitmap(env, canvas, "star", 
-                   (engine.screenW - starSize) / 2.0f, 
-                   engine.screenH * 0.25f, 
-                   starSize, starSize, 0.0f);
-        drawBitmap(env, canvas, "next", 
-                   (engine.screenW - btnSize) / 2.0f, 
-                   engine.screenH * 0.6f, 
-                   btnSize, btnSize, 0.0f);
+        float sx = (engine.screenW - 200.0f) / 2.0f;
+        float sy = engine.screenH * 0.25f;
+        drawBitmapSimple(env, canvas, "star", sx, sy);
+
+        float nx = (engine.screenW - 160.0f) / 2.0f;
+        float ny = engine.screenH * 0.6f;
+        drawBitmapSimple(env, canvas, "next", nx, ny);
     }
 }
 
 JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_handleTouchNative(JNIEnv* env, jobject obj, jfloat x, jfloat y) {
     if (engine.state == MENU) {
-        float btnSize = engine.screenW * 0.35f;
-        float bx = (engine.screenW - btnSize) / 2.0f;
-        float by = (engine.screenH - btnSize) / 2.0f;
-        if (x >= bx && x <= bx + btnSize && y >= by && y <= by + btnSize) {
+        float bx = (engine.screenW - 200.0f) / 2.0f;
+        float by = (engine.screenH - 200.0f) / 2.0f;
+        if (x >= bx && x <= bx + 200.0f && y >= by && y <= by + 200.0f) {
             engine.state = PLAYING;
         }
         return;
     }
     
     if (engine.state == VICTORY) {
-        float btnSize = engine.screenW * 0.3f;
-        float bx = (engine.screenW - btnSize) / 2.0f;
-        float by = engine.screenH * 0.6f;
-        if (x >= bx && x <= bx + btnSize && y >= by && y <= by + btnSize) {
+        float nx = (engine.screenW - 160.0f) / 2.0f;
+        float ny = engine.screenH * 0.6f;
+        if (x >= nx && x <= nx + 160.0f && y >= ny && y <= ny + 160.0f) {
             engine.level++;
             engine.initLevel();
             engine.state = PLAYING;
