@@ -51,7 +51,7 @@ public:
     jclass canvasClass;
     jclass matrixClass;
     jobject globalMatrixObj = nullptr;
-    jmethodID drawBitmapMid, drawColorMid, drawRectMid;
+    jmethodID drawBitmapMid, drawColorMid;
     jmethodID setRotateMid, postScaleMid, postTranslateMid, matrixInitMid;
 
     GameEngine() {}
@@ -124,9 +124,9 @@ void drawBitmap(JNIEnv* env, jobject canvas, jobject bitmap, float x, float y, f
     float centerX = 50.0f;
     float centerY = 50.0f;
     
-    env->CallVoidMethod(engine.globalMatrixObj, engine.setRotateMid, rotation, centerX, centerY);
-    env->CallVoidMethod(engine.globalMatrixObj, engine.postScaleMid, scale, scale, centerX, centerY);
-    env->CallVoidMethod(engine.globalMatrixObj, engine.postTranslateMid, x, y);
+    env->CallVoidMethod(engine.globalMatrixObj, engine.setRotateMid, (jfloat)rotation, (jfloat)centerX, (jfloat)centerY);
+    env->CallVoidMethod(engine.globalMatrixObj, engine.postScaleMid, (jfloat)scale, (jfloat)scale, (jfloat)centerX, (jfloat)centerY);
+    env->CallVoidMethod(engine.globalMatrixObj, engine.postTranslateMid, (jfloat)x, (jfloat)y);
     
     env->CallVoidMethod(canvas, engine.drawBitmapMid, bitmap, engine.globalMatrixObj, nullptr);
 }
