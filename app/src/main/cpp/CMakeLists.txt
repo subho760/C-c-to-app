@@ -1,19 +1,9 @@
 cmake_minimum_required(VERSION 3.22.1)
+project("arrowpuzzle")
 
-project("backgroundchange")
+add_library(native-lib SHARED native-lib.cpp)
 
-add_library(
-        backgroundchange
-        SHARED
-        game_logic.cpp
-)
+find_library(log-lib log)
+find_library(jnigraphics-lib jnigraphics)
 
-find_library(
-        log-lib
-        log
-)
-
-target_link_libraries(
-        backgroundchange
-        ${log-lib}
-)
+target_link_libraries(native-lib ${log-lib} ${jnigraphics-lib} android)
