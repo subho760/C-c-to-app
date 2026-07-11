@@ -82,10 +82,12 @@ public class MainActivity extends AppCompatActivity {
             
             initNative(darkTheme);
             for(int i = 0; i < ids.length; i++) {
-                Bitmap bmp = BitmapFactory.decodeResource(getResources(), ids[i]);
-                if (bmp != null) {
-                    loadNativeAsset(names[i], bmp);
-                }
+                try {
+                    Bitmap bmp = BitmapFactory.decodeResource(getResources(), ids[i]);
+                    if (bmp != null) {
+                        loadNativeAsset(names[i], bmp);
+                    }
+                } catch (Exception ignored) {}
             }
         }
 
@@ -102,7 +104,9 @@ public class MainActivity extends AppCompatActivity {
                 if (!holder.getSurface().isValid()) continue;
                 Canvas canvas = holder.lockCanvas();
                 if (canvas != null) {
-                    updateAndRenderNative(canvas);
+                    try {
+                        updateAndRenderNative(canvas);
+                    } catch (Exception ignored) {}
                     holder.unlockCanvasAndPost(canvas);
                 }
                 try {
