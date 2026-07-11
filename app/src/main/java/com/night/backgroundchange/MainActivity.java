@@ -1,128 +1,139 @@
 package com.night.backgroundchange;
 
-import android.app.Activity;
-import android.media.MediaPlayer;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.media.AudioAttributes;
+import android.media.SoundPool;
 import android.os.Bundle;
+import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.widget.FrameLayout;
+import android.view.View;
+import androidx.appcompat.app.AppCompatActivity;
 
-public class MainActivity extends Activity {
-    static {
-        try {
-            System.loadLibrary("game_logic");
-        } catch (Throwable t) {
-            // Prevent native loading issues from killing the app process
-        }
-    }
-
-    // Native C++ Game Engines Engine Bridges
-    public native String stringFromJNI();
-    public native void initNativeLevel(int[] data);
-    public native boolean canArrowMove(int arrowId);
-    public native void removeNativeArrow(int arrowId);
-
-    private GameEngine gameEngine;
-    private MediaPlayer clickPlayer;
-    private MediaPlayer winPlayer;
+public class MainActivity extends AppCompatActivity {
+    private GameView gameView;
+    private SoundPool soundPool;
+    private int clickSound, completeSound;
     private boolean soundEnabled = true;
-    private boolean isSurfaceReady = false;
+
+    static {
+        System.loadLibrary("native-lib");
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         
-        // 1. Inflate a programmatic full-screen hardware-accelerated root container
-        FrameLayout rootContainer = new FrameLayout(this);
-        setContentView(rootContainer);
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
 
-        // 2. Load the game layout viewport
-        gameEngine = new GameEngine(this, this, rootContainer);
-        rootContainer.addView(gameEngine);
+        SharedPreferences prefs = getPreferences(Context.MODE_PRIVATE);
+        soundEnabled = prefs.getBoolean("sound", true);
+        boolean isDarkMode = prefs.getBoolean("dark_mode", true);
 
-        // 3. Set up audio files safely
-        try {
-            clickPlayer = MediaPlayer.create(this, R.raw.click);
-            winPlayer = MediaPlayer.create(this, R.raw.completelevel);
-        } catch (Exception e) {
-            // Sound fallback safety check
-        }
-
-        // 4. Send initial level structural grid to C++ native side
-        try {
-            int[] secureStarterGrid = new int[200]; 
-            for (int i = 0; i < secureStarterGrid.length; i++) {
-                secureStarterGrid[i] = 1; 
-            }
-            initNativeLevel(secureStarterGrid);
-        } catch (Throwable nativeError) {
-            // Catch native bridge mismatches safely
-        }
-
-        // 5. Connect the hardware surface view drawing hooks
-        if (gameEngine instanceof SurfaceView) {
-            SurfaceHolder holder = ((SurfaceView) gameEngine).getHolder();
-            holder.addCallback(new SurfaceHolder.Callback() {
-                @Override
-                public void surfaceCreated(SurfaceHolder holder) {
-                    isSurfaceReady = true;
-                    if (gameEngine != null) {
-                        gameEngine.resume();
-                    }
-                }
-
-                @Override
-                public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {}
-
-                @Override
-                public void surfaceDestroyed(SurfaceHolder holder) {
-                    isSurfaceReady = false;
-                    if (gameEngine != null) {
-                        gameEngine.pause();
-                    }
-                }
-            });
-        } else {
-            rootContainer.post(() -> {
-                isSurfaceReady = true;
-                if (gameEngine != null) {
-                    gameEngine.resume();
-                }
-            });
-        }
+        initSounds();
+        gameView = new GameView(this, isDarkMode);
+        setContentView(gameView);
     }
 
-    public void playSound(boolean isWin) {
+    private void initSounds() {
+        AudioAttributes attrs = new AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_GAME)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build();
+        soundPool = new SoundPool.Builder().setMaxStreams(5).setAudioAttributes(attrs).build();
+        clickSound = soundPool.load(this, R.raw.click, 1);
+        completeSound = soundPool.load(this, R.raw.completelevel, 1);
+    }
+
+    public void playSound(int type) {
         if (!soundEnabled) return;
-        if (isWin) {
-            if (winPlayer != null) winPlayer.start();
-        } else {
-            if (clickPlayer != null) clickPlayer.start();
-        }
+        if (type == 0) soundPool.play(clickSound, 1.0f, 1.0f, 0, 0, 1.0f);
+        else soundPool.play(completeSound, 1.0f, 1.0f, 0, 0, 1.0f);
     }
 
-    public void onLevelComplete() {
-        playSound(true);
-        runOnUiThread(() -> {
-            if (gameEngine != null) {
-                gameEngine.loadLevel(2);
+    class GameView extends SurfaceView implements SurfaceHolder.Callback, Runnable {
+        private Thread gameThread;
+        private boolean running;
+        private SurfaceHolder holder;
+
+        public GameView(Context context, boolean darkTheme) {
+            super(context);
+            holder = getHolder();
+            holder.addCallback(this);
+            
+            int[] ids = {
+                R.drawable.arrow, R.drawable.tile, R.drawable.glow, R.drawable.back, 
+                R.drawable.home, R.drawable.retry, R.drawable.next, R.drawable.play,
+                R.drawable.paused, R.drawable.settings, R.drawable.sound_on, 
+                R.drawable.soundoff, R.drawable.tick, R.drawable.star, 
+                R.drawable.hint, R.drawable.close, R.drawable.lock
+            };
+            
+            String[] names = {
+                "arrow", "tile", "glow", "back", "home", "retry", "next", "play", 
+                "paused", "settings", "sound_on", "soundoff", "tick", "star", 
+                "hint", "close", "lock"
+            };
+            
+            initNative(darkTheme);
+            for(int i = 0; i < ids.length; i++) {
+                Bitmap bmp = BitmapFactory.decodeResource(getResources(), ids[i]);
+                if (bmp != null) {
+                    loadNativeAsset(names[i], bmp);
+                }
             }
-        });
-    }
+        }
 
-    @Override
-    protected void onResume() {
-        super.onResume();
-        if (gameEngine != null && isSurfaceReady) {
-            gameEngine.resume();
+        @Override
+        public void surfaceCreated(SurfaceHolder holder) {
+            running = true;
+            gameThread = new Thread(this);
+            gameThread.start();
+        }
+
+        @Override
+        public void run() {
+            while (running) {
+                if (!holder.getSurface().isValid()) continue;
+                Canvas canvas = holder.lockCanvas();
+                if (canvas != null) {
+                    updateAndRenderNative(canvas);
+                    holder.unlockCanvasAndPost(canvas);
+                }
+                try {
+                    Thread.sleep(16);
+                } catch (InterruptedException ignored) {}
+            }
+        }
+
+        @Override
+        public boolean onTouchEvent(MotionEvent event) {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                handleTouchNative(event.getX(), event.getY());
+            }
+            return true;
+        }
+
+        @Override
+        public void surfaceChanged(SurfaceHolder h, int f, int w, int h1) {
+            setNativeSize(w, h1);
+        }
+        
+        @Override
+        public void surfaceDestroyed(SurfaceHolder h) {
+            running = false;
+            try { gameThread.join(); } catch (InterruptedException ignored) {}
         }
     }
 
-    @Override
-    protected void onPause() {
-        super.onPause();
-        if (gameEngine != null) {
-            gameEngine.pause();
-        }
-    }
+    public native void initNative(boolean darkTheme);
+    public native void loadNativeAsset(String name, Bitmap bitmap);
+    public native void updateAndRenderNative(Canvas canvas);
+    public native void handleTouchNative(float x, float y);
+    public native void setNativeSize(int w, int h);
 }
