@@ -71,8 +71,11 @@ public:
             }
         }
         
-        std::default_random_engine gen(std::chrono::system_clock::now().time_since_epoch().count());
+        unsigned int seed = std::chrono::system_clock::now().time_since_epoch().count();
+        std::mt19937 gen(seed);
         std::shuffle(slots.begin(), slots.end(), gen);
+
+        std::uniform_int_distribution<> dirDist(0, 3);
 
         int idCounter = 0;
         for(auto& slot : slots) {
@@ -80,7 +83,10 @@ public:
             a.id = idCounter++;
             a.gridX = slot.first;
             a.gridY = slot.second;
-            int d = (std::rand() % 4) * 90;
+            
+            int randDirIdx = dirDist(gen);
+            int d = randDirIdx * 90;
+            
             a.dir = (Direction)d;
             a.currentX = (float)a.gridX;
             a.currentY = (float)a.gridY;
