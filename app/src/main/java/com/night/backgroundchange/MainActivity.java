@@ -85,7 +85,7 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     Bitmap bmp = BitmapFactory.decodeResource(getResources(), ids[i]);
                     if (bmp != null) {
-                        loadNativeAsset(names[i], bmp);
+                        loadNativeAsset(names[i], bmp, bmp.getWidth(), bmp.getHeight());
                     }
                 } catch (Exception ignored) {}
             }
@@ -136,7 +136,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public native void initNative(boolean darkTheme);
-    public native void loadNativeAsset(String name, Bitmap bitmap);
+    public native void loadNativeAsset(String name, Bitmap bitmap, int width, int height);
     public native void updateAndRenderNative(Canvas canvas);
     public native void handleTouchNative(float x, float y);
     public native void setNativeSize(int w, int h);
