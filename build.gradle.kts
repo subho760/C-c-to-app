@@ -1,16 +1,18 @@
-buildscript {
+pluginManagement {
     repositories {
         google()
         mavenCentral()
-    }
-    dependencies {
-        classpath("com.android.tools.build:gradle:8.2.2")
+        gradlePluginPortal()
     }
 }
 
-allprojects {
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         google()
         mavenCentral()
     }
 }
+
+rootProject.name = "C-c-to-app"
+include(":app")
