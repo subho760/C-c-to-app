@@ -50,6 +50,7 @@ public:
     jobject mainActivityObj;
     jclass canvasClass;
     jclass matrixClass;
+    jobject globalMatrixObj = nullptr;
     jmethodID drawBitmapMid, drawColorMid, drawRectMid;
     jmethodID setRotateMid, postScaleMid, postTranslateMid, matrixInitMid;
 
@@ -118,18 +119,16 @@ public:
 static GameEngine engine;
 
 void drawBitmap(JNIEnv* env, jobject canvas, jobject bitmap, float x, float y, float scale, float rotation) {
-    if (!bitmap) return;
-    jobject matrix = env->NewObject(engine.matrixClass, engine.matrixInitMid);
+    if (!bitmap || !engine.globalMatrixObj) return;
     
     float centerX = 50.0f;
     float centerY = 50.0f;
     
-    env->CallVoidMethod(matrix, engine.setRotateMid, rotation, centerX, centerY);
-    env->CallVoidMethod(matrix, engine.postScaleMid, scale, scale, centerX, centerY);
-    env->CallVoidMethod(matrix, engine.postTranslateMid, x, y);
+    env->CallVoidMethod(engine.globalMatrixObj, engine.setRotateMid, rotation, centerX, centerY);
+    env->CallVoidMethod(engine.globalMatrixObj, engine.postScaleMid, scale, scale, centerX, centerY);
+    env->CallVoidMethod(engine.globalMatrixObj, engine.postTranslateMid, x, y);
     
-    env->CallVoidMethod(canvas, engine.drawBitmapMid, bitmap, matrix, nullptr);
-    env->DeleteLocalRef(matrix);
+    env->CallVoidMethod(canvas, engine.drawBitmapMid, bitmap, engine.globalMatrixObj, nullptr);
 }
 
 extern "C" {
@@ -152,6 +151,10 @@ Java_com_night_backgroundchange_MainActivity_initNative(JNIEnv* env, jobject obj
     engine.setRotateMid = env->GetMethodID(engine.matrixClass, "setRotate", "(FFF)V");
     engine.postScaleMid = env->GetMethodID(engine.matrixClass, "postScale", "(FFFF)V");
     engine.postTranslateMid = env->GetMethodID(engine.matrixClass, "postTranslate", "(FF)V");
+
+    jobject localMatrix = env->NewObject(engine.matrixClass, engine.matrixInitMid);
+    engine.globalMatrixObj = env->NewGlobalRef(localMatrix);
+    env->DeleteLocalRef(localMatrix);
 
     engine.initLevel();
 }
