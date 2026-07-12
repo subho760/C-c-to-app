@@ -16,8 +16,17 @@ allprojects {
     }
 }
 
-tasks.named('clean') {
-    doFirst {
-        delete rootProject.layout.buildDirectory
+// Safely configure or create the clean task so it never crashes the build setup
+if (tasks.findByName('clean') != null) {
+    tasks.named('clean') {
+        doLast {
+            delete rootProject.layout.buildDirectory
+        }
+    }
+} else {
+    tasks.register('clean') {
+        doLast {
+            delete rootProject.layout.buildDirectory
+        }
     }
 }
