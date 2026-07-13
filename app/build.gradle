@@ -43,6 +43,13 @@ android {
     buildFeatures {
         viewBinding false
     }
+
+    // Tells the compiler to ignore missing tools when handling native C++ symbols
+    packaging {
+        jniLibs {
+            keepDebugSymbols = true
+        }
+    }
 }
 
 dependencies {
