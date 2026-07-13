@@ -24,6 +24,10 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            
+            // Forces the release build to use the default debug keys for now 
+            // so GitHub Actions can finish generating your files without a .jks crash.
+            signingConfig signingConfigs.debug
         }
     }
     
@@ -39,10 +43,9 @@ android {
         }
     }
 
-        buildFeatures {
+    buildFeatures {
         viewBinding false
     }
-
 }
 
 dependencies {
