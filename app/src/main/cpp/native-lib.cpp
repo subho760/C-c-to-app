@@ -160,6 +160,8 @@ Java_com_night_backgroundchange_MainActivity_nativeOnResize(JNIEnv* env, jobject
 }
 
 void drawBitmapNative(JNIEnv* env, jobject canvas, jobject bitmap, float x, float y, float scale, float angle) {
+    if (!bitmap) return; // 👈 SAFETY CHECK: Prevents JNI NullPointerException crashes!
+    
     jobject matrix = env->NewObject(engine.matrixCls, engine.matrixInit);
     float pivot = 50.0f; 
 
@@ -176,8 +178,16 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     int bgColor = engine.darkTheme ? 0xFF121212 : 0xFFF5F5F5;
     env->CallVoidMethod(canvas, engine.canvasDrawColor, bgColor);
 
+    // Dynamic asset-check helpers: If critical assets are missing, don't crash
+    auto playBmp = engine.assets.count("play") ? engine.assets["play"] : nullptr;
+    auto tileBmp = engine.assets.count("tile") ? engine.assets["tile"] : nullptr;
+    auto glowBmp = engine.assets.count("glow") ? engine.assets["glow"] : nullptr;
+    auto arrowBmp = engine.assets.count("arrow") ? engine.assets["arrow"] : nullptr;
+    auto starBmp = engine.assets.count("star") ? engine.assets["star"] : nullptr;
+    auto nextBmp = engine.assets.count("next") ? engine.assets["next"] : nullptr;
+
     if (engine.state == MENU) {
-        drawBitmapNative(env, canvas, engine.assets["play"], engine.screenW/2 - 75, engine.screenH/2 - 75, 1.5f, 0);
+        drawBitmapNative(env, canvas, playBmp, engine.screenW/2 - 75, engine.screenH/2 - 75, 1.5f, 0);
         return;
     }
 
@@ -189,7 +199,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         allCleared = false;
         float drawX = engine.offsetX + a.gx * engine.tileSize;
         float drawY = engine.offsetY + a.gy * engine.tileSize;
-        drawBitmapNative(env, canvas, engine.assets["tile"], drawX, drawY, engine.tileSize/100.0f, 0);
+        drawBitmapNative(env, canvas, tileBmp, drawX, drawY, engine.tileSize/100.0f, 0);
     }
 
     // 2. Update and Render Arrows
@@ -212,10 +222,10 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         float drawY = engine.offsetY + a.curY * engine.tileSize;
         
         if (a.exiting) {
-            drawBitmapNative(env, canvas, engine.assets["glow"], drawX, drawY, engine.tileSize/100.0f, 0);
+            drawBitmapNative(env, canvas, glowBmp, drawX, drawY, engine.tileSize/100.0f, 0);
         }
 
-        drawBitmapNative(env, canvas, engine.assets["arrow"], drawX, drawY, (engine.tileSize/100.0f) * a.scale, (float)a.dir);
+        drawBitmapNative(env, canvas, arrowBmp, drawX, drawY, (engine.tileSize/100.0f) * a.scale, (float)a.dir);
     }
 
     // 3. Victory Check
@@ -225,8 +235,8 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     }
 
     if (engine.state == VICTORY) {
-        drawBitmapNative(env, canvas, engine.assets["star"], engine.screenW/2 - 100, engine.screenH/4, 2.0f, 0);
-        drawBitmapNative(env, canvas, engine.assets["next"], engine.screenW/2 - 75, engine.screenH/2 + 100, 1.5f, 0);
+        drawBitmapNative(env, canvas, starBmp, engine.screenW/2 - 100, engine.screenH/4, 2.0f, 0);
+        drawBitmapNative(env, canvas, nextBmp, engine.screenW/2 - 75, engine.screenH/2 + 100, 1.5f, 0);
     }
 }
 
