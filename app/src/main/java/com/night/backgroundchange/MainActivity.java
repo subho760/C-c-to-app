@@ -59,12 +59,21 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         int[] ids = {R.drawable.arrow, R.drawable.tile, R.drawable.glow, R.drawable.play, 
                      R.drawable.retry, R.drawable.star, R.drawable.next};
         String[] names = {"arrow", "tile", "glow", "play", "retry", "star", "next"};
-        for (int i = 0; i < ids.length; i++) {
-            Bitmap bmp = BitmapFactory.decodeResource(getResources(), ids[i]);
-            if (bmp != null) {
-                nativePushAsset(names[i], bmp);
-            }
+        //  NEW CRASH-PROOF CODE
+for(int i = 0; i < ids.length; i++) {
+    try {
+        Bitmap bmp = BitmapFactory.decodeResource(getResources(), ids[i]);
+        if (bmp != null) {
+            nativePushAsset(names[i], bmp);
+        } else {
+            // Log a warning so you know exactly which drawable asset file is missing in your folder!
+            android.util.Log.w("GameAssets", "Missing drawable resource: " + names[i]);
         }
+    } catch (Exception e) {
+        android.util.Log.e("GameAssets", "Failed to load resource: " + names[i], e);
+    }
+}
+
     }
 
     // Called by NDK to trigger SFX
