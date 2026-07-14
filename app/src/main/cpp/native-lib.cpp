@@ -39,14 +39,23 @@ public:
     float tileSize, offsetX, offsetY;
     std::vector<Arrow> arrows;
 
-    // JNI Cached References
+    // JNI Cached References (Global references to prevent memory overflows)
     jobject activityObj = nullptr;
     std::map<std::string, jobject> assets;
+    
+    jclass matrixCls = nullptr;
+    jclass canvasCls = nullptr;
+    
+    jmethodID matrixInit = nullptr;
+    jmethodID matrixSetRotate = nullptr;
+    jmethodID matrixPostTranslate = nullptr;
+    jmethodID matrixPostScale = nullptr;
+    jmethodID canvasDrawBitmap = nullptr;
+    jmethodID canvasDrawColor = nullptr;
     jmethodID playSoundMid = nullptr;
 
     GameEngine() = default;
 
-    // --- Procedural Solvable Generator ---
     void initLevel(int lvl) {
         arrows.clear();
         
@@ -60,7 +69,6 @@ public:
 
         calculateLayout();
 
-        // Build Solvable Puzzle via Reverse Simulation
         std::vector<std::pair<int, int>> slots;
         for(int y=0; y<gridH; ++y) for(int x=0; x<gridW; ++x) slots.push_back({x, y});
         
@@ -117,46 +125,22 @@ public:
 
 static GameEngine engine;
 
-// Safe utility to draw bitmaps handling local lookups with corrected Matrix JNI signatures
+// Re-uses global descriptors without generating local reference overhead leaks
 void drawBitmapNative(JNIEnv* env, jobject canvas, jobject bitmap, float x, float y, float scale, float angle) {
-    if (!canvas || !bitmap) return;
+    if (!canvas || !bitmap || !engine.matrixCls || !engine.canvasDrawBitmap) return;
 
-    jclass matrixCls = env->FindClass("android/graphics/Matrix");
-    if (!matrixCls) return;
-
-    jmethodID matrixInit = env->GetMethodID(matrixCls, "<init>", "()V");
-    // Corrected signatures: Matrix methods return boolean (Z), not void (V)
-    jmethodID matrixSetRotate = env->GetMethodID(matrixCls, "setRotate", "(FFF)Z");
-    jmethodID matrixPostTranslate = env->GetMethodID(matrixCls, "postTranslate", "(FF)Z");
-    jmethodID matrixPostScale = env->GetMethodID(matrixCls, "postScale", "(FFFF)Z");
-
-    jclass canvasCls = env->FindClass("android/graphics/Canvas");
-    if (!canvasCls) {
-        env->DeleteLocalRef(matrixCls);
-        return;
-    }
-    jmethodID canvasDrawBitmap = env->GetMethodID(canvasCls, "drawBitmap", "(Landroid/graphics/Bitmap;Landroid/graphics/Matrix;Landroid/graphics/Paint;)V");
-
-    if (!matrixInit || !matrixSetRotate || !matrixPostTranslate || !matrixPostScale || !canvasDrawBitmap) {
-        LOGE("Failed to find one or more Matrix/Canvas JNI Method IDs!");
-        env->DeleteLocalRef(matrixCls);
-        env->DeleteLocalRef(canvasCls);
-        return;
-    }
-
-    jobject matrix = env->NewObject(matrixCls, matrixInit);
+    jobject matrix = env->NewObject(engine.matrixCls, engine.matrixInit);
+    if (!matrix) return;
+    
     float pivot = 50.0f; 
 
-    // Call with boolean return expectations
-    env->CallBooleanMethod(matrix, matrixSetRotate, angle, pivot, pivot);
-    env->CallBooleanMethod(matrix, matrixPostScale, scale, scale, pivot, pivot);
-    env->CallBooleanMethod(matrix, matrixPostTranslate, x, y);
+    env->CallBooleanMethod(matrix, engine.matrixSetRotate, angle, pivot, pivot);
+    env->CallBooleanMethod(matrix, engine.matrixPostScale, scale, scale, pivot, pivot);
+    env->CallBooleanMethod(matrix, engine.matrixPostTranslate, x, y);
 
-    env->CallVoidMethod(canvas, canvasDrawBitmap, bitmap, matrix, nullptr);
+    env->CallVoidMethod(canvas, engine.canvasDrawBitmap, bitmap, matrix, nullptr);
 
     env->DeleteLocalRef(matrix);
-    env->DeleteLocalRef(matrixCls);
-    env->DeleteLocalRef(canvasCls);
 }
 
 extern "C" {
@@ -168,6 +152,24 @@ Java_com_night_backgroundchange_MainActivity_initNativeEngine(JNIEnv* env, jobje
     
     jclass actCls = env->GetObjectClass(obj);
     engine.playSoundMid = env->GetMethodID(actCls, "playSound", "(I)V");
+
+    // Cache as Global Refs so they survive frame-by-frame draw loops safely
+    jclass localMatrixCls = env->FindClass("android/graphics/Matrix");
+    engine.matrixCls = (jclass)env->NewGlobalRef(localMatrixCls);
+    env->DeleteLocalRef(localMatrixCls);
+
+    jclass localCanvasCls = env->FindClass("android/graphics/Canvas");
+    engine.canvasCls = (jclass)env->NewGlobalRef(localCanvasCls);
+    env->DeleteLocalRef(localCanvasCls);
+
+    // Cache layout structures
+    engine.matrixInit = env->GetMethodID(engine.matrixCls, "<init>", "()V");
+    engine.matrixSetRotate = env->GetMethodID(engine.matrixCls, "setRotate", "(FFF)Z");
+    engine.matrixPostTranslate = env->GetMethodID(engine.matrixCls, "postTranslate", "(FF)Z");
+    engine.matrixPostScale = env->GetMethodID(engine.matrixCls, "postScale", "(FFFF)Z");
+    
+    engine.canvasDrawBitmap = env->GetMethodID(engine.canvasCls, "drawBitmap", "(Landroid/graphics/Bitmap;Landroid/graphics/Matrix;Landroid/graphics/Paint;)V");
+    engine.canvasDrawColor = env->GetMethodID(engine.canvasCls, "drawColor", "(I)V");
 
     engine.initLevel(1);
 }
@@ -189,17 +191,10 @@ Java_com_night_backgroundchange_MainActivity_nativeOnResize(JNIEnv* env, jobject
 
 JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject obj, jobject canvas) {
-    if (!canvas) return;
+    if (!canvas || !engine.canvasDrawColor) return;
 
-    jclass canvasCls = env->FindClass("android/graphics/Canvas");
-    if (!canvasCls) return;
-
-    jmethodID canvasDrawColor = env->GetMethodID(canvasCls, "drawColor", "(I)V");
-    if (canvasDrawColor) {
-        int bgColor = engine.darkTheme ? 0xFF121212 : 0xFFF5F5F5;
-        env->CallVoidMethod(canvas, canvasDrawColor, bgColor);
-    }
-    env->DeleteLocalRef(canvasCls);
+    int bgColor = engine.darkTheme ? 0xFF121212 : 0xFFF5F5F5;
+    env->CallVoidMethod(canvas, engine.canvasDrawColor, bgColor);
 
     auto playBmp = engine.assets.count("play") ? engine.assets["play"] : nullptr;
     auto tileBmp = engine.assets.count("tile") ? engine.assets["tile"] : nullptr;
