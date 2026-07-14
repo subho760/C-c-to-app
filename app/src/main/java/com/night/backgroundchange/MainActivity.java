@@ -25,7 +25,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             System.loadLibrary("native-lib");
         } catch (UnsatisfiedLinkError e) {
-            android.util.Log.e("NativeGame", "Failed to load native-lib", e);
+            android.util.Log.e("NativeGame", "Failed to load native-lib library binary file", e);
         }
     }
 
@@ -55,18 +55,13 @@ public class MainActivity extends AppCompatActivity {
                     .build();
             soundPool = new SoundPool.Builder().setMaxStreams(5).setAudioAttributes(attrs).build();
             
-            // Safe raw resource loading
             int clickId = getResources().getIdentifier("click", "raw", getPackageName());
             int completeId = getResources().getIdentifier("completelevel", "raw", getPackageName());
             
-            if (clickId != 0) {
-                clickSound = soundPool.load(this, clickId, 1);
-            }
-            if (completeId != 0) {
-                completeSound = soundPool.load(this, completeId, 1);
-            }
+            if (clickId != 0) clickSound = soundPool.load(this, clickId, 1);
+            if (completeId != 0) completeSound = soundPool.load(this, completeId, 1);
         } catch (Exception e) {
-            android.util.Log.e("NativeGame", "Sound initialization failed, running in silent mode.", e);
+            android.util.Log.e("NativeGame", "SoundPool failed setup. Silent fallback mode.", e);
             soundEnabled = false;
         }
     }
@@ -80,14 +75,14 @@ public class MainActivity extends AppCompatActivity {
                 soundPool.play(completeSound, 1.0f, 1.0f, 0, 0, 1.0f);
             }
         } catch (Exception e) {
-            android.util.Log.e("NativeGame", "Failed to play sound effect", e);
+            android.util.Log.e("NativeGame", "Audio processing trace tracking fault.", e);
         }
     }
 
     class GameView extends SurfaceView implements SurfaceHolder.Callback, Runnable {
         private Thread gameThread;
-        private boolean running;
-        private SurfaceHolder holder;
+        private volatile boolean running;
+        private final SurfaceHolder holder;
 
         public GameView(Context context, boolean darkTheme) {
             super(context);
@@ -99,25 +94,21 @@ public class MainActivity extends AppCompatActivity {
                          R.drawable.paused, R.drawable.settings, R.drawable.sound_on, 
                          R.drawable.soundoff, R.drawable.tick, R.drawable.star, 
                          R.drawable.hint, R.drawable.close, R.drawable.lock};
-                         
-            String[] names = {"arrow", "tile", "glow", "back", "home", "retry", "next", "play", 
-                              "paused", "settings", "sound_on", "soundoff", "tick", "star", 
-                              "hint", "close", "lock"};
             
             try {
                 initNativeEngine(darkTheme);
-            } catch (UnsatisfiedLinkError e) {
-                android.util.Log.e("NativeGame", "Native engine init crashed", e);
+            } catch (Exception e) {
+                android.util.Log.e("NativeGame", "Engine loop instantiation fault", e);
             }
             
             for(int i = 0; i < ids.length; i++) {
                 try {
                     Bitmap bmp = BitmapFactory.decodeResource(getResources(), ids[i]);
                     if (bmp != null) {
-                        nativePushAsset(names[i], bmp);
+                        nativePushAsset(i, bmp);
                     }
                 } catch (Exception e) {
-                    android.util.Log.e("GameAssets", "Failed to load resource: " + names[i], e);
+                    android.util.Log.e("GameAssets", "Failed to load resource ID index: " + i, e);
                 }
             }
         }
@@ -138,14 +129,14 @@ public class MainActivity extends AppCompatActivity {
                     try {
                         nativeRender(canvas);
                     } catch (Exception e) {
-                        android.util.Log.e("NativeGame", "Render call failed", e);
+                        android.util.Log.e("NativeGame", "Frame canvas exception drop.", e);
                     }
                     holder.unlockCanvasAndPost(canvas);
                 }
                 try {
                     Thread.sleep(16);
                 } catch (InterruptedException e) {
-                    e.printStackTrace();
+                    Thread.currentThread().interrupt();
                 }
             }
         }
@@ -156,7 +147,7 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     nativeOnTouch(event.getX(), event.getY());
                 } catch (Exception e) {
-                    android.util.Log.e("NativeGame", "Touch processing failed", e);
+                    android.util.Log.e("NativeGame", "Input processing error.", e);
                 }
             }
             return true;
@@ -167,7 +158,7 @@ public class MainActivity extends AppCompatActivity {
             try {
                 nativeOnResize(w, h1);
             } catch (Exception e) {
-                android.util.Log.e("NativeGame", "Resize failed", e);
+                android.util.Log.e("NativeGame", "Resize lifecycle exception.", e);
             }
         }
         
@@ -177,13 +168,13 @@ public class MainActivity extends AppCompatActivity {
             try { 
                 if (gameThread != null) gameThread.join(); 
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Thread.currentThread().interrupt();
             }
         }
     }
 
     public native void initNativeEngine(boolean darkTheme);
-    public native void nativePushAsset(String name, Bitmap bitmap);
+    public native void nativePushAsset(int index, Bitmap bitmap);
     public native void nativeRender(Canvas canvas);
     public native void nativeOnTouch(float x, float y);
     public native void nativeOnResize(int w, int h);
