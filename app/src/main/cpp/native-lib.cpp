@@ -2,327 +2,274 @@
 #include <string>
 #include <vector>
 #include <map>
-#include <memory>
 #include <algorithm>
 #include <cmath>
 #include <chrono>
 #include <random>
 
-enum Direction { UP = 0, RIGHT = 90, DOWN = 180, LEFT = 270 };
-enum GameState { MENU, PLAYING, SETTINGS, VICTORY };
+// --- Constants & Enums ---
+enum Direction { UP = 270, RIGHT = 0, DOWN = 90, LEFT = 180 };
+enum GameState { MENU, PLAYING, VICTORY, SETTINGS };
 
 struct Arrow {
     int id;
-    int gridX, gridY;
+    int gx, gy;        // Grid Coordinates
+    float curX, curY;  // Animation Coordinates
     Direction dir;
-    float currentX, currentY;
     float scale = 1.0f;
     float alpha = 1.0f;
-    bool isRemoving = false;
-    bool isRemoved = false;
-};
-
-struct AssetData {
-    jobject bitmapObj;
-    int width;
-    int height;
+    bool active = true;
+    bool exiting = false;
 };
 
 class GameEngine {
 public:
+    // UI & State
     GameState state = MENU;
-    int screenW = 0, screenH = 0;
     int level = 1;
     bool darkTheme = true;
-    bool soundOn = true;
+    int screenW = 0, screenH = 0;
 
+    // Grid Logic
+    int gridW, gridH;
+    float tileSize, offsetX, offsetY;
     std::vector<Arrow> arrows;
-    std::map<std::string, AssetData> assets;
+
+    // JNI Cached References
+    jobject activityObj = nullptr;
+    std::map<std::string, jobject> assets;
     
-    float tileSize;
-    float offsetX, offsetY;
-    int gridW = 4, gridH = 5;
+    // Cached Method IDs
+    jclass canvasCls, matrixCls, paintCls;
+    jmethodID canvasDrawBitmap, canvasDrawColor, canvasDrawRect;
+    jmethodID matrixInit, matrixSetRotate, matrixPostTranslate, matrixPostScale;
+    jmethodID playSoundMid;
 
-    JNIEnv* lastEnv;
-    jobject mainActivityObj;
-    jclass canvasClass;
-    jclass matrixClass;
-    jobject globalMatrixObj = nullptr;
-    jobject defaultPaintObj = nullptr;
-    jmethodID drawBitmapMid, drawColorMid;
-    jmethodID setRotateMid, postScaleMid, postTranslateMid, matrixInitMid, matrixResetMid;
+    GameEngine() = default;
 
-    GameEngine() {}
-
-    void initLevel() {
+    // --- Procedural Solvable Generator ---
+    void initLevel(int lvl) {
         arrows.clear();
-        gridW = 3 + (level / 5);
-        gridH = 4 + (level / 5);
-        if (gridW > 7) gridW = 7;
-        if (gridH > 9) gridH = 9;
         
-        std::vector<std::pair<int, int>> slots;
-        for(int y = 0; y < gridH; y++) {
-            for(int x = 0; x < gridW; x++) {
-                slots.push_back({x, y});
-            }
+        // 1. Determine Grid Size (Progression Logic)
+        if (lvl % 5 == 0) { // Boss Levels (5, 10, 15, 20)
+            gridW = 5 + (lvl / 10); 
+            gridH = 7 + (lvl / 10);
+        } else { // Normal Levels
+            gridW = 3 + (lvl / 6);
+            gridH = 4 + (lvl / 6);
         }
+
+        calculateLayout();
+
+        // 2. Build Solvable Puzzle via Reverse Simulation
+        // Start with a list of all possible slots
+        std::vector<std::pair<int, int>> slots;
+        for(int y=0; y<gridH; ++y) for(int x=0; x<gridW; ++x) slots.push_back({x, y});
         
-        unsigned int seed = std::chrono::system_clock::now().time_since_epoch().count();
-        std::mt19937 gen(seed);
-        std::shuffle(slots.begin(), slots.end(), gen);
+        std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
+        std::shuffle(slots.begin(), slots.end(), rng);
 
-        std::uniform_int_distribution<> dirDist(0, 3);
-
+        // Fill density: Boss levels are 100% full, normal levels 80%
+        int targetCount = (lvl % 5 == 0) ? slots.size() : (int)(slots.size() * 0.85f);
         int idCounter = 0;
-        for(auto& slot : slots) {
+
+        for(int i=0; i < targetCount; ++i) {
             Arrow a;
             a.id = idCounter++;
-            a.gridX = slot.first;
-            a.gridY = slot.second;
+            a.gx = slots[i].first;
+            a.gy = slots[i].second;
+            a.curX = (float)a.gx;
+            a.curY = (float)a.gy;
             
-            int randDirIdx = dirDist(gen);
-            int d = randDirIdx * 90;
+            // Assign random direction
+            int d = std::uniform_int_distribution<int>(0, 3)(rng);
+            if(d == 0) a.dir = UP;
+            else if(d == 1) a.dir = RIGHT;
+            else if(d == 2) a.dir = DOWN;
+            else a.dir = LEFT;
             
-            a.dir = (Direction)d;
-            a.currentX = (float)a.gridX;
-            a.currentY = (float)a.gridY;
             arrows.push_back(a);
         }
-        recalculateLayout();
     }
 
-    void recalculateLayout() {
-        if (screenW <= 0 || screenH <= 0) return;
-        tileSize = std::min(screenW / (gridW + 2.0f), screenH / (gridH + 4.0f));
+    void calculateLayout() {
+        if (screenW == 0 || screenH == 0) return;
+        float margin = screenW * 0.1f;
+        tileSize = std::min((screenW - margin) / gridW, (screenH - margin * 4) / gridH);
         offsetX = (screenW - (gridW * tileSize)) / 2.0f;
         offsetY = (screenH - (gridH * tileSize)) / 2.0f;
     }
 
-    bool isPathClear(const Arrow& a) {
+    bool isPathClear(const Arrow& subject) {
         for(const auto& other : arrows) {
-            if (other.isRemoved || other.isRemoving || other.id == a.id) continue;
+            if (!other.active || other.exiting || other.id == subject.id) continue;
             
-            if (a.dir == UP && other.gridX == a.gridX && other.gridY < a.gridY) return false;
-            if (a.dir == DOWN && other.gridX == a.gridX && other.gridY > a.gridY) return false;
-            if (a.dir == LEFT && other.gridY == a.gridY && other.gridX < a.gridX) return false;
-            if (a.dir == RIGHT && other.gridY == a.gridY && other.gridX > a.gridX) return false;
+            if (subject.dir == UP && other.gx == subject.gx && other.gy < subject.gy) return false;
+            if (subject.dir == DOWN && other.gx == subject.gx && other.gy > subject.gy) return false;
+            if (subject.dir == LEFT && other.gy == subject.gy && other.gx < subject.gx) return false;
+            if (subject.dir == RIGHT && other.gy == subject.gy && other.gx > subject.gx) return false;
         }
         return true;
     }
 
-    void triggerSound(int type) {
-        if (!soundOn) return;
-        jclass clazz = lastEnv->GetObjectClass(mainActivityObj);
-        jmethodID mid = lastEnv->GetMethodID(clazz, "playSound", "(I)V");
-        if (mid) {
-            lastEnv->CallVoidMethod(mainActivityObj, mid, type);
+    void triggerSound(JNIEnv* env, int type) {
+        if (activityObj) {
+            env->CallVoidMethod(activityObj, playSoundMid, type);
         }
     }
 };
 
 static GameEngine engine;
 
-void drawAssetMatrix(JNIEnv* env, jobject canvas, const std::string& assetName, float targetX, float targetY, float targetW, float targetH, float rotation) {
-    auto it = engine.assets.find(assetName);
-    if (it == engine.assets.end() || !engine.globalMatrixObj || !engine.drawBitmapMid) return;
-    
-    AssetData data = it->second;
-    if (!data.bitmapObj) return;
-
-    env->CallVoidMethod(engine.globalMatrixObj, engine.matrixResetMid);
-
-    float origW = (float)data.width;
-    float origH = (float)data.height;
-
-    float scaleX = targetW / origW;
-    float scaleY = targetH / origH;
-
-    float centerX = origW / 2.0f;
-    float centerY = origH / 2.0f;
-    
-    env->CallVoidMethod(engine.globalMatrixObj, engine.setRotateMid, (jfloat)rotation, (jfloat)centerX, (jfloat)centerY);
-    
-    if (env->GetMethodSignature && std::string(env->GetMethodSignature).find(")V") != std::string::npos) {
-        env->CallVoidMethod(engine.globalMatrixObj, engine.postScaleMid, (jfloat)scaleX, (jfloat)scaleY, (jfloat)centerX, (jfloat)centerY);
-        env->CallVoidMethod(engine.globalMatrixObj, engine.postTranslateMid, (jfloat)targetX, (jfloat)targetY);
-    } else {
-        env->CallBooleanMethod(engine.globalMatrixObj, engine.postScaleMid, (jfloat)scaleX, (jfloat)scaleY, (jfloat)centerX, (jfloat)centerY);
-        env->CallBooleanMethod(engine.globalMatrixObj, engine.postTranslateMid, (jfloat)targetX, (jfloat)targetY);
-    }
-    
-    env->CallVoidMethod(canvas, engine.drawBitmapMid, data.bitmapObj, engine.globalMatrixObj, engine.defaultPaintObj);
-}
-
 extern "C" {
 
 JNIEXPORT void JNICALL
-Java_com_night_backgroundchange_MainActivity_initNative(JNIEnv* env, jobject obj, jboolean dark) {
-    engine.mainActivityObj = env->NewGlobalRef(obj);
+Java_com_night_backgroundchange_MainActivity_initNativeEngine(JNIEnv* env, jobject obj, jboolean dark) {
+    engine.activityObj = env->NewGlobalRef(obj);
     engine.darkTheme = dark;
     
-    jclass canvasCls = env->FindClass("android/graphics/Canvas");
-    engine.canvasClass = (jclass)env->NewGlobalRef(canvasCls);
-    
-    jclass matrixCls = env->FindClass("android/graphics/Matrix");
-    engine.matrixClass = (jclass)env->NewGlobalRef(matrixCls);
-    
-    jclass paintCls = env->FindClass("android/graphics/Paint");
-    jmethodID paintInitMid = env->GetMethodID(paintCls, "<init>", "()V");
-    jobject localPaint = env->NewObject(paintCls, paintInitMid);
-    engine.defaultPaintObj = env->NewGlobalRef(localPaint);
-    env->DeleteLocalRef(localPaint);
-    
-    engine.drawColorMid = env->GetMethodID(engine.canvasClass, "drawColor", "(I)V");
-    engine.drawBitmapMid = env->GetMethodID(engine.canvasClass, "drawBitmap", "(Landroid/graphics/Bitmap;Landroid/graphics/Matrix;Landroid/graphics/Paint;)V");
+    jclass actCls = env->GetObjectClass(obj);
+    engine.playSoundMid = env->GetMethodID(actCls, "playSound", "(I)V");
 
-    engine.matrixInitMid = env->GetMethodID(engine.matrixClass, "<init>", "()V");
-    engine.matrixResetMid = env->GetMethodID(engine.matrixClass, "reset", "()V");
-    engine.setRotateMid = env->GetMethodID(engine.matrixClass, "setRotate", "(FFF)V");
+    engine.canvasCls = (jclass)env->NewGlobalRef(env->FindClass("android/graphics/Canvas"));
+    engine.matrixCls = (jclass)env->NewGlobalRef(env->FindClass("android/graphics/Matrix"));
+    engine.paintCls = (jclass)env->NewGlobalRef(env->FindClass("android/graphics/Paint"));
+
+    engine.canvasDrawBitmap = env->GetMethodID(engine.canvasCls, "drawBitmap", "(Landroid/graphics/Bitmap;Landroid/graphics/Matrix;Landroid/graphics/Paint;)V");
+    engine.canvasDrawColor = env->GetMethodID(engine.canvasCls, "drawColor", "(I)V");
     
-    engine.postScaleMid = env->GetMethodID(engine.matrixClass, "postScale", "(FFFF)Z");
-    if (!engine.postScaleMid) {
-        env->ExceptionClear();
-        engine.postScaleMid = env->GetMethodID(engine.matrixClass, "postScale", "(FFFF)V");
-    }
+    engine.matrixInit = env->GetMethodID(engine.matrixCls, "<init>", "()V");
+    engine.matrixSetRotate = env->GetMethodID(engine.matrixCls, "setRotate", "(FFF)V");
+    engine.matrixPostTranslate = env->GetMethodID(engine.matrixCls, "postTranslate", "(FF)V");
+    engine.matrixPostScale = env->GetMethodID(engine.matrixCls, "postScale", "(FFFF)V");
 
-    engine.postTranslateMid = env->GetMethodID(engine.matrixClass, "postTranslate", "(FF)Z");
-    if (!engine.postTranslateMid) {
-        env->ExceptionClear();
-        engine.postTranslateMid = env->GetMethodID(engine.matrixClass, "postTranslate", "(FF)V");
-    }
-
-    jobject localMatrix = env->NewObject(engine.matrixClass, engine.matrixInitMid);
-    engine.globalMatrixObj = env->NewGlobalRef(localMatrix);
-    env->DeleteLocalRef(localMatrix);
-
-    engine.initLevel();
+    engine.initLevel(1);
 }
 
 JNIEXPORT void JNICALL
-Java_com_night_backgroundchange_MainActivity_loadNativeAsset(JNIEnv* env, jobject obj, jstring name, jobject bitmap, jint w, jint h) {
-    const char* nativeName = env->GetStringUTFChars(name, 0);
-    AssetData data;
-    data.bitmapObj = env->NewGlobalRef(bitmap);
-    data.width = w;
-    data.height = h;
-    engine.assets[std::string(nativeName)] = data;
-    env->ReleaseStringUTFChars(name, nativeName);
+Java_com_night_backgroundchange_MainActivity_nativePushAsset(JNIEnv* env, jobject obj, jstring name, jobject bmp) {
+    const char* utfName = env->GetStringUTFChars(name, nullptr);
+    engine.assets[std::string(utfName)] = env->NewGlobalRef(bmp);
+    env->ReleaseStringUTFChars(name, utfName);
 }
 
 JNIEXPORT void JNICALL
-Java_com_night_backgroundchange_MainActivity_setNativeSize(JNIEnv* env, jobject obj, jint w, jint h) {
+Java_com_night_backgroundchange_MainActivity_nativeOnResize(JNIEnv* env, jobject obj, jint w, jint h) {
     engine.screenW = w;
     engine.screenH = h;
-    engine.recalculateLayout();
+    engine.calculateLayout();
 }
 
-JNIEXPORT void JNICALL
-Java_com_night_backgroundchange_MainActivity_updateAndRenderNative(JNIEnv* env, jobject obj, jobject canvas) {
-    engine.lastEnv = env;
+void drawBitmapNative(JNIEnv* env, jobject canvas, jobject bitmap, float x, float y, float scale, float angle) {
+    // 1. Instantiate Matrix
+    jobject matrix = env->NewObject(engine.matrixCls, engine.matrixInit);
     
-    if (engine.drawColorMid) {
-        int bgColor = engine.darkTheme ? 0xFF121212 : 0xFFF0F0F0;
-        env->CallVoidMethod(canvas, engine.drawColorMid, bgColor);
-    }
+    // Standard asset size is 100x100 for calculations
+    float pivot = 50.0f; 
 
-    if (engine.state == PLAYING) {
-        bool allCleared = true;
-        for (auto& a : engine.arrows) {
-            if (a.isRemoved) continue;
-            allCleared = false;
-            
-            if (a.isRemoving) {
-                float speed = engine.screenW * 0.04f;
-                if (a.dir == UP) a.currentY -= speed / engine.tileSize;
-                if (a.dir == DOWN) a.currentY += speed / engine.tileSize;
-                if (a.dir == LEFT) a.currentX -= speed / engine.tileSize;
-                if (a.dir == RIGHT) a.currentX += speed / engine.tileSize;
-                
-                a.alpha -= 0.08f;
-                a.scale -= 0.04f;
-                
-                if (a.alpha <= 0.0f || a.scale <= 0.0f) a.isRemoved = true;
-            }
+    // 2. Apply Transforms: Rotate -> Scale -> Translate
+    env->CallVoidMethod(matrix, engine.matrixSetRotate, angle, pivot, pivot);
+    env->CallVoidMethod(matrix, engine.matrixPostScale, scale, scale, pivot, pivot);
+    env->CallVoidMethod(matrix, engine.matrixPostTranslate, x, y);
 
-            if (!a.isRemoving) {
-                drawAssetMatrix(env, canvas, "tile", 
-                                engine.offsetX + a.gridX * engine.tileSize, 
-                                engine.offsetY + a.gridY * engine.tileSize,
-                                engine.tileSize, engine.tileSize, 0.0f);
-            }
-
-            float currentSize = engine.tileSize * a.scale;
-            float shift = (engine.tileSize - currentSize) / 2.0f;
-
-            drawAssetMatrix(env, canvas, "arrow", 
-                            engine.offsetX + a.currentX * engine.tileSize + shift, 
-                            engine.offsetY + a.currentY * engine.tileSize + shift,
-                            currentSize, currentSize, (float)a.dir);
-        }
-        
-        if (allCleared) {
-            engine.state = VICTORY;
-            engine.triggerSound(1);
-        }
-    } else if (engine.state == MENU) {
-        float btnSize = engine.screenW * 0.35f;
-        drawAssetMatrix(env, canvas, "play", 
-                        (engine.screenW - btnSize) / 2.0f, 
-                        (engine.screenH - btnSize) / 2.0f, 
-                        btnSize, btnSize, 0.0f);
-    } else if (engine.state == VICTORY) {
-        float starSize = engine.screenW * 0.4f;
-        float btnSize = engine.screenW * 0.3f;
-        drawAssetMatrix(env, canvas, "star", 
-                        (engine.screenW - starSize) / 2.0f, 
-                        engine.screenH * 0.25f, 
-                        starSize, starSize, 0.0f);
-        drawAssetMatrix(env, canvas, "next", 
-                        (engine.screenW - btnSize) / 2.0f, 
-                        engine.screenH * 0.6f, 
-                        btnSize, btnSize, 0.0f);
-    }
+    // 3. Draw
+    env->CallVoidMethod(canvas, engine.canvasDrawBitmap, bitmap, matrix, nullptr);
+    
+    // Cleanup local ref to prevent overflow in loop
+    env->DeleteLocalRef(matrix);
 }
 
 JNIEXPORT void JNICALL
-Java_com_night_backgroundchange_MainActivity_handleTouchNative(JNIEnv* env, jobject obj, jfloat x, jfloat y) {
+Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject obj, jobject canvas) {
+    // Background Color
+    int bgColor = engine.darkTheme ? 0xFF121212 : 0xFFF5F5F5;
+    env->CallVoidMethod(canvas, engine.canvasDrawColor, bgColor);
+
     if (engine.state == MENU) {
-        float btnSize = engine.screenW * 0.35f;
-        float bx = (engine.screenW - btnSize) / 2.0f;
-        float by = (engine.screenH - btnSize) / 2.0f;
-        if (x >= bx && x <= bx + btnSize && y >= by && y <= by + btnSize) {
-            engine.state = PLAYING;
-        }
-        return;
-    }
-    
-    if (engine.state == VICTORY) {
-        float btnSize = engine.screenW * 0.3f;
-        float bx = (engine.screenW - btnSize) / 2.0f;
-        float by = engine.screenH * 0.6f;
-        if (x >= bx && x <= bx + btnSize && y >= by && y <= by + btnSize) {
-            engine.level++;
-            engine.initLevel();
-            engine.state = PLAYING;
-        }
+        drawBitmapNative(env, canvas, engine.assets["play"], engine.screenW/2 - 75, engine.screenH/2 - 75, 1.5f, 0);
         return;
     }
 
+    bool allCleared = true;
+
+    // 1. Render Tiles
     for (auto& a : engine.arrows) {
-        if (a.isRemoved || a.isRemoving) continue;
+        if (!a.active) continue;
+        allCleared = false;
+        float drawX = engine.offsetX + a.gx * engine.tileSize;
+        float drawY = engine.offsetY + a.gy * engine.tileSize;
+        drawBitmapNative(env, canvas, engine.assets["tile"], drawX, drawY, engine.tileSize/100.0f, 0);
+    }
+
+    // 2. Update and Render Arrows
+    for (auto& a : engine.arrows) {
+        if (!a.active) continue;
+
+        if (a.exiting) {
+            float speed = 0.4f;
+            if (a.dir == UP) a.curY -= speed;
+            else if (a.dir == DOWN) a.curY += speed;
+            else if (a.dir == LEFT) a.curX -= speed;
+            else if (a.dir == RIGHT) a.curX += speed;
+            
+            a.alpha -= 0.05f;
+            a.scale -= 0.04f;
+            if (a.alpha <= 0) a.active = false;
+        }
+
+        float drawX = engine.offsetX + a.curX * engine.tileSize;
+        float drawY = engine.offsetY + a.curY * engine.tileSize;
         
-        float ax = engine.offsetX + a.gridX * engine.tileSize;
-        float ay = engine.offsetY + a.gridY * engine.tileSize;
-        
+        // Draw glow if removing
+        if (a.exiting) {
+            drawBitmapNative(env, canvas, engine.assets["glow"], drawX, drawY, engine.tileSize/100.0f, 0);
+        }
+
+        drawBitmapNative(env, canvas, engine.assets["arrow"], drawX, drawY, (engine.tileSize/100.0f) * a.scale, (float)a.dir);
+    }
+
+    // 3. Victory Check
+    if (allCleared && engine.state == PLAYING) {
+        engine.state = VICTORY;
+        engine.triggerSound(env, 1);
+    }
+
+    if (engine.state == VICTORY) {
+        drawBitmapNative(env, canvas, engine.assets["star"], engine.screenW/2 - 100, engine.screenH/4, 2.0f, 0);
+        drawBitmapNative(env, canvas, engine.assets["next"], engine.screenW/2 - 75, engine.screenH/2 + 100, 1.5f, 0);
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject obj, jfloat x, jfloat y) {
+    if (engine.state == MENU) {
+        engine.state = PLAYING;
+        return;
+    }
+
+    if (engine.state == VICTORY) {
+        engine.level++;
+        engine.initLevel(engine.level);
+        engine.state = PLAYING;
+        return;
+    }
+
+    // Hit detection for arrows
+    for (auto& a : engine.arrows) {
+        if (!a.active || a.exiting) continue;
+
+        float ax = engine.offsetX + a.gx * engine.tileSize;
+        float ay = engine.offsetY + a.gy * engine.tileSize;
+
         if (x >= ax && x <= ax + engine.tileSize && y >= ay && y <= ay + engine.tileSize) {
             if (engine.isPathClear(a)) {
-                a.isRemoving = true;
-                engine.triggerSound(0);
+                a.exiting = true;
+                engine.triggerSound(env, 0); // Click
             }
             break;
         }
     }
 }
 
-}
+} // extern "C"
