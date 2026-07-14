@@ -6,6 +6,10 @@
 #include <cmath>
 #include <chrono>
 #include <random>
+#include <android/log.h>
+
+#define LOG_TAG "NativeGame"
+#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
 // --- Constants & Enums ---
 enum Direction { UP = 270, RIGHT = 0, DOWN = 90, LEFT = 180 };
@@ -46,7 +50,7 @@ public:
     void initLevel(int lvl) {
         arrows.clear();
         
-        if (lvl % 5 == 0) { // Boss Levels (5, 10, 15, 20)
+        if (lvl % 5 == 0) { // Boss Levels
             gridW = 5 + (lvl / 10); 
             gridH = 7 + (lvl / 10);
         } else { // Normal Levels
@@ -113,26 +117,40 @@ public:
 
 static GameEngine engine;
 
-// Safe utility to draw bitmaps handling local lookups directly without risk of init freeze
+// Safe utility to draw bitmaps handling local lookups with corrected Matrix JNI signatures
 void drawBitmapNative(JNIEnv* env, jobject canvas, jobject bitmap, float x, float y, float scale, float angle) {
     if (!canvas || !bitmap) return;
 
-    // Look up classes locally to guarantee absolute safety against signature issues
     jclass matrixCls = env->FindClass("android/graphics/Matrix");
+    if (!matrixCls) return;
+
     jmethodID matrixInit = env->GetMethodID(matrixCls, "<init>", "()V");
-    jmethodID matrixSetRotate = env->GetMethodID(matrixCls, "setRotate", "(FFF)V");
-    jmethodID matrixPostTranslate = env->GetMethodID(matrixCls, "postTranslate", "(FF)V");
-    jmethodID matrixPostScale = env->GetMethodID(matrixCls, "postScale", "(FFFF)V");
+    // Corrected signatures: Matrix methods return boolean (Z), not void (V)
+    jmethodID matrixSetRotate = env->GetMethodID(matrixCls, "setRotate", "(FFF)Z");
+    jmethodID matrixPostTranslate = env->GetMethodID(matrixCls, "postTranslate", "(FF)Z");
+    jmethodID matrixPostScale = env->GetMethodID(matrixCls, "postScale", "(FFFF)Z");
 
     jclass canvasCls = env->FindClass("android/graphics/Canvas");
+    if (!canvasCls) {
+        env->DeleteLocalRef(matrixCls);
+        return;
+    }
     jmethodID canvasDrawBitmap = env->GetMethodID(canvasCls, "drawBitmap", "(Landroid/graphics/Bitmap;Landroid/graphics/Matrix;Landroid/graphics/Paint;)V");
+
+    if (!matrixInit || !matrixSetRotate || !matrixPostTranslate || !matrixPostScale || !canvasDrawBitmap) {
+        LOGE("Failed to find one or more Matrix/Canvas JNI Method IDs!");
+        env->DeleteLocalRef(matrixCls);
+        env->DeleteLocalRef(canvasCls);
+        return;
+    }
 
     jobject matrix = env->NewObject(matrixCls, matrixInit);
     float pivot = 50.0f; 
 
-    env->CallVoidMethod(matrix, matrixSetRotate, angle, pivot, pivot);
-    env->CallVoidMethod(matrix, matrixPostScale, scale, scale, pivot, pivot);
-    env->CallVoidMethod(matrix, matrixPostTranslate, x, y);
+    // Call with boolean return expectations
+    env->CallBooleanMethod(matrix, matrixSetRotate, angle, pivot, pivot);
+    env->CallBooleanMethod(matrix, matrixPostScale, scale, scale, pivot, pivot);
+    env->CallBooleanMethod(matrix, matrixPostTranslate, x, y);
 
     env->CallVoidMethod(canvas, canvasDrawBitmap, bitmap, matrix, nullptr);
 
@@ -174,10 +192,13 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     if (!canvas) return;
 
     jclass canvasCls = env->FindClass("android/graphics/Canvas");
+    if (!canvasCls) return;
+
     jmethodID canvasDrawColor = env->GetMethodID(canvasCls, "drawColor", "(I)V");
-    
-    int bgColor = engine.darkTheme ? 0xFF121212 : 0xFFF5F5F5;
-    env->CallVoidMethod(canvas, canvasDrawColor, bgColor);
+    if (canvasDrawColor) {
+        int bgColor = engine.darkTheme ? 0xFF121212 : 0xFFF5F5F5;
+        env->CallVoidMethod(canvas, canvasDrawColor, bgColor);
+    }
     env->DeleteLocalRef(canvasCls);
 
     auto playBmp = engine.assets.count("play") ? engine.assets["play"] : nullptr;
@@ -188,7 +209,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     auto nextBmp = engine.assets.count("next") ? engine.assets["next"] : nullptr;
 
     if (engine.state == MENU) {
-        drawBitmapNative(env, canvas, playBmp, engine.screenW/2 - 75, engine.screenH/2 - 75, 1.5f, 0);
+        drawBitmapNative(env, canvas, playBmp, engine.screenW/2.0f - 75, engine.screenH/2.0f - 75, 1.5f, 0);
         return;
     }
 
@@ -236,8 +257,8 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     }
 
     if (engine.state == VICTORY) {
-        drawBitmapNative(env, canvas, starBmp, engine.screenW/2 - 100, engine.screenH/4, 2.0f, 0);
-        drawBitmapNative(env, canvas, nextBmp, engine.screenW/2 - 75, engine.screenH/2 + 100, 1.5f, 0);
+        drawBitmapNative(env, canvas, starBmp, engine.screenW/2.0f - 100, engine.screenH/4.0f, 2.0f, 0);
+        drawBitmapNative(env, canvas, nextBmp, engine.screenW/2.0f - 75, engine.screenH/2.0f + 100, 1.5f, 0);
     }
 }
 
