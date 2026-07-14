@@ -25,6 +25,10 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.debug
+            
+            ndk {
+                debugSymbolLevel 'NONE'
+            }
         }
     }
     
@@ -44,7 +48,6 @@ android {
         viewBinding false
     }
 
-    // Tells the compiler to ignore missing tools when handling native C++ symbols
     packaging {
         jniLibs {
             keepDebugSymbols = true
