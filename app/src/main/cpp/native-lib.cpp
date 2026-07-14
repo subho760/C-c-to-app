@@ -1,4 +1,6 @@
 #include <jni.h>
+#include <android/bitmap.h>       // 👈 ADD THIS: Needed for AndroidBitmap_lockPixels
+#include <android/native_window_jni.h> // 👈 ADD THIS: Needed for native window surface control
 #include <string>
 #include <vector>
 #include <map>
