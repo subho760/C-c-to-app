@@ -110,11 +110,10 @@ public class MainActivity extends AppCompatActivity implements SurfaceHolder.Cal
         try { renderThread.join(); } catch (InterruptedException e) { e.printStackTrace(); }
     }
 
-        // Native Methods
+           //  FIXED CODE FOR THE BOTTOM OF THE FILE
     public native void initNativeEngine(boolean darkTheme);
-    public native void nativePushAsset(String name, Bitmap bitmap);
-    public native void nativeRender(Canvas canvas);
+    public native void nativePushAsset(String name, Object bitmap);
+    public native void nativeRender(Object canvas); // <-- Changed from Canvas to Object
     public native void nativeOnTouch(float x, float y);
     public native void nativeOnResize(int w, int h);
-    
 }
