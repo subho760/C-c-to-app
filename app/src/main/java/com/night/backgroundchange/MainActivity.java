@@ -4,7 +4,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Canvas; // 👈 Explicitly imported to avoid compile issues
+import android.graphics.Canvas;
 import android.media.AudioAttributes;
 import android.media.SoundPool;
 import android.os.Bundle;
@@ -143,7 +143,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // Cleaned JNI Signatures
     public native void initNativeEngine(boolean darkTheme);
     public native void nativePushAsset(String name, Bitmap bitmap);
     public native void nativeRender(Canvas canvas);
