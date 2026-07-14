@@ -17,11 +17,16 @@ import androidx.appcompat.app.AppCompatActivity;
 public class MainActivity extends AppCompatActivity {
     private GameView gameView;
     private SoundPool soundPool;
-    private int clickSound, completeSound;
+    private int clickSound = -1;
+    private int completeSound = -1;
     private boolean soundEnabled = true;
 
     static {
-        System.loadLibrary("native-lib");
+        try {
+            System.loadLibrary("native-lib");
+        } catch (UnsatisfiedLinkError e) {
+            android.util.Log.e("NativeGame", "Failed to load native-lib", e);
+        }
     }
 
     @Override
@@ -43,21 +48,39 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initSounds() {
-        AudioAttributes attrs = new AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_GAME)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build();
-        soundPool = new SoundPool.Builder().setMaxStreams(5).setAudioAttributes(attrs).build();
-        clickSound = soundPool.load(this, R.raw.click, 1);
-        completeSound = soundPool.load(this, R.raw.completelevel, 1);
+        try {
+            AudioAttributes attrs = new AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_GAME)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build();
+            soundPool = new SoundPool.Builder().setMaxStreams(5).setAudioAttributes(attrs).build();
+            
+            // Safe raw resource loading
+            int clickId = getResources().getIdentifier("click", "raw", getPackageName());
+            int completeId = getResources().getIdentifier("completelevel", "raw", getPackageName());
+            
+            if (clickId != 0) {
+                clickSound = soundPool.load(this, clickId, 1);
+            }
+            if (completeId != 0) {
+                completeSound = soundPool.load(this, completeId, 1);
+            }
+        } catch (Exception e) {
+            android.util.Log.e("NativeGame", "Sound initialization failed, running in silent mode.", e);
+            soundEnabled = false;
+        }
     }
 
     public void playSound(int type) {
-        if (!soundEnabled) return;
-        if (type == 0) {
-            soundPool.play(clickSound, 1.0f, 1.0f, 0, 0, 1.0f);
-        } else {
-            soundPool.play(completeSound, 1.0f, 1.0f, 0, 0, 1.0f);
+        if (!soundEnabled || soundPool == null) return;
+        try {
+            if (type == 0 && clickSound != -1) {
+                soundPool.play(clickSound, 1.0f, 1.0f, 0, 0, 1.0f);
+            } else if (type == 1 && completeSound != -1) {
+                soundPool.play(completeSound, 1.0f, 1.0f, 0, 0, 1.0f);
+            }
+        } catch (Exception e) {
+            android.util.Log.e("NativeGame", "Failed to play sound effect", e);
         }
     }
 
@@ -81,7 +104,11 @@ public class MainActivity extends AppCompatActivity {
                               "paused", "settings", "sound_on", "soundoff", "tick", "star", 
                               "hint", "close", "lock"};
             
-            initNativeEngine(darkTheme);
+            try {
+                initNativeEngine(darkTheme);
+            } catch (UnsatisfiedLinkError e) {
+                android.util.Log.e("NativeGame", "Native engine init crashed", e);
+            }
             
             for(int i = 0; i < ids.length; i++) {
                 try {
@@ -108,7 +135,11 @@ public class MainActivity extends AppCompatActivity {
                 if (!holder.getSurface().isValid()) continue;
                 Canvas canvas = holder.lockCanvas();
                 if (canvas != null) {
-                    nativeRender(canvas);
+                    try {
+                        nativeRender(canvas);
+                    } catch (Exception e) {
+                        android.util.Log.e("NativeGame", "Render call failed", e);
+                    }
                     holder.unlockCanvasAndPost(canvas);
                 }
                 try {
@@ -122,14 +153,22 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public boolean onTouchEvent(MotionEvent event) {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                nativeOnTouch(event.getX(), event.getY());
+                try {
+                    nativeOnTouch(event.getX(), event.getY());
+                } catch (Exception e) {
+                    android.util.Log.e("NativeGame", "Touch processing failed", e);
+                }
             }
             return true;
         }
 
         @Override
         public void surfaceChanged(SurfaceHolder h, int f, int w, int h1) {
-            nativeOnResize(w, h1);
+            try {
+                nativeOnResize(w, h1);
+            } catch (Exception e) {
+                android.util.Log.e("NativeGame", "Resize failed", e);
+            }
         }
         
         @Override
