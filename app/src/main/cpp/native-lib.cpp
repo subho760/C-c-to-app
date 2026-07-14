@@ -1,6 +1,4 @@
 #include <jni.h>
-#include <android/bitmap.h>       // 👈 ADD THIS: Needed for AndroidBitmap_lockPixels
-#include <android/native_window_jni.h> // 👈 ADD THIS: Needed for native window surface control
 #include <string>
 #include <vector>
 #include <map>
@@ -53,7 +51,7 @@ public:
     void initLevel(int lvl) {
         arrows.clear();
         
-        // 1. Determine Grid Size (Progression Logic)
+        // Determine Grid Size (Progression Logic)
         if (lvl % 5 == 0) { // Boss Levels (5, 10, 15, 20)
             gridW = 5 + (lvl / 10); 
             gridH = 7 + (lvl / 10);
@@ -64,15 +62,14 @@ public:
 
         calculateLayout();
 
-        // 2. Build Solvable Puzzle via Reverse Simulation
-        // Start with a list of all possible slots
+        // Build Solvable Puzzle via Reverse Simulation
         std::vector<std::pair<int, int>> slots;
         for(int y=0; y<gridH; ++y) for(int x=0; x<gridW; ++x) slots.push_back({x, y});
         
         std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
         std::shuffle(slots.begin(), slots.end(), rng);
 
-        // Fill density: Boss levels are 100% full, normal levels 80%
+        // Fill density: Boss levels are 100% full, normal levels 85%
         int targetCount = (lvl % 5 == 0) ? slots.size() : (int)(slots.size() * 0.85f);
         int idCounter = 0;
 
@@ -84,7 +81,6 @@ public:
             a.curX = (float)a.gx;
             a.curY = (float)a.gy;
             
-            // Assign random direction
             int d = std::uniform_int_distribution<int>(0, 3)(rng);
             if(d == 0) a.dir = UP;
             else if(d == 1) a.dir = RIGHT;
@@ -164,27 +160,19 @@ Java_com_night_backgroundchange_MainActivity_nativeOnResize(JNIEnv* env, jobject
 }
 
 void drawBitmapNative(JNIEnv* env, jobject canvas, jobject bitmap, float x, float y, float scale, float angle) {
-    // 1. Instantiate Matrix
     jobject matrix = env->NewObject(engine.matrixCls, engine.matrixInit);
-    
-    // Standard asset size is 100x100 for calculations
     float pivot = 50.0f; 
 
-    // 2. Apply Transforms: Rotate -> Scale -> Translate
     env->CallVoidMethod(matrix, engine.matrixSetRotate, angle, pivot, pivot);
     env->CallVoidMethod(matrix, engine.matrixPostScale, scale, scale, pivot, pivot);
     env->CallVoidMethod(matrix, engine.matrixPostTranslate, x, y);
 
-    // 3. Draw
     env->CallVoidMethod(canvas, engine.canvasDrawBitmap, bitmap, matrix, nullptr);
-    
-    // Cleanup local ref to prevent overflow in loop
     env->DeleteLocalRef(matrix);
 }
 
 JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject obj, jobject canvas) {
-    // Background Color
     int bgColor = engine.darkTheme ? 0xFF121212 : 0xFFF5F5F5;
     env->CallVoidMethod(canvas, engine.canvasDrawColor, bgColor);
 
@@ -223,7 +211,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         float drawX = engine.offsetX + a.curX * engine.tileSize;
         float drawY = engine.offsetY + a.curY * engine.tileSize;
         
-        // Draw glow if removing
         if (a.exiting) {
             drawBitmapNative(env, canvas, engine.assets["glow"], drawX, drawY, engine.tileSize/100.0f, 0);
         }
@@ -257,7 +244,6 @@ Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject 
         return;
     }
 
-    // Hit detection for arrows
     for (auto& a : engine.arrows) {
         if (!a.active || a.exiting) continue;
 
@@ -267,7 +253,7 @@ Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject 
         if (x >= ax && x <= ax + engine.tileSize && y >= ay && y <= ay + engine.tileSize) {
             if (engine.isPathClear(a)) {
                 a.exiting = true;
-                engine.triggerSound(env, 0); // Click
+                engine.triggerSound(env, 0); 
             }
             break;
         }
