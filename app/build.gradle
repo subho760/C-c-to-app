@@ -48,9 +48,10 @@ android {
         viewBinding false
     }
 
-    packaging {
+        packaging {
         jniLibs {
-            keepDebugSymbols = true
+            // Keep debug symbols for all native .so libraries to satisfy your toolchain
+            keepDebugSymbols += ["**/*.so"] 
         }
     }
 }
