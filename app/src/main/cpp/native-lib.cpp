@@ -1,7 +1,6 @@
 #include <jni.h>
 #include <string>
 #include <vector>
-#include <map>
 #include <algorithm>
 #include <cmath>
 #include <chrono>
@@ -10,21 +9,27 @@
 
 #define LOG_TAG "NativeGame"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
-// --- Constants & Enums ---
 enum Direction { UP = 270, RIGHT = 0, DOWN = 90, LEFT = 180 };
 enum GameState { MENU, PLAYING, VICTORY, SETTINGS };
 
 struct Arrow {
     int id;
-    int gx, gy;        // Grid Coordinates
-    float curX, curY;  // Animation Coordinates
+    int gx, gy;
+    float curX, curY;
     Direction dir;
     float scale = 1.0f;
     float alpha = 1.0f;
     bool active = true;
     bool exiting = false;
+};
+
+// Fixed enum indices to align perfectly with Java asset loading arrays
+enum AssetIndex {
+    ASSET_ARROW = 0, ASSET_TILE, ASSET_GLOW, ASSET_BACK, ASSET_HOME,
+    ASSET_RETRY, ASSET_NEXT, ASSET_PLAY, ASSET_PAUSED, ASSET_SETTINGS,
+    ASSET_SOUND_ON, ASSET_SOUND_OFF, ASSET_TICK, ASSET_STAR, ASSET_HINT,
+    ASSET_CLOSE, ASSET_LOCK, ASSET_COUNT
 };
 
 class GameEngine {
@@ -33,14 +38,14 @@ public:
     int level = 1;
     bool darkTheme = true;
     int screenW = 0, screenH = 0;
+    bool ready = false;
 
-    int gridW, gridH;
-    float tileSize, offsetX, offsetY;
+    int gridW = 3, gridH = 4;
+    float tileSize = 0, offsetX = 0, offsetY = 0;
     std::vector<Arrow> arrows;
 
-    // JNI Global References
     jobject activityObj = nullptr;
-    std::map<std::string, jobject> assets;
+    jobject assets[ASSET_COUNT] = { nullptr };
     
     jclass matrixCls = nullptr;
     jclass canvasCls = nullptr;
@@ -57,15 +62,13 @@ public:
 
     void initLevel(int lvl) {
         arrows.clear();
-        
-        if (lvl % 5 == 0) { // Boss Levels
+        if (lvl % 5 == 0) {
             gridW = 5 + (lvl / 10); 
             gridH = 7 + (lvl / 10);
-        } else { // Normal Levels
+        } else {
             gridW = 3 + (lvl / 6);
             gridH = 4 + (lvl / 6);
         }
-
         calculateLayout();
 
         std::vector<std::pair<int, int>> slots;
@@ -106,7 +109,6 @@ public:
     bool isPathClear(const Arrow& subject) {
         for(const auto& other : arrows) {
             if (!other.active || other.exiting || other.id == subject.id) continue;
-            
             if (subject.dir == UP && other.gx == subject.gx && other.gy < subject.gy) return false;
             if (subject.dir == DOWN && other.gx == subject.gx && other.gy > subject.gy) return false;
             if (subject.dir == LEFT && other.gy == subject.gy && other.gx < subject.gx) return false;
@@ -131,13 +133,11 @@ void drawBitmapNative(JNIEnv* env, jobject canvas, jobject bitmap, float x, floa
     if (!matrix) return;
     
     float pivot = 50.0f; 
-
     if (engine.matrixSetRotate) env->CallBooleanMethod(matrix, engine.matrixSetRotate, angle, pivot, pivot);
     if (engine.matrixPostScale) env->CallBooleanMethod(matrix, engine.matrixPostScale, scale, scale, pivot, pivot);
     if (engine.matrixPostTranslate) env->CallBooleanMethod(matrix, engine.matrixPostTranslate, x, y);
 
     env->CallVoidMethod(canvas, engine.canvasDrawBitmap, bitmap, matrix, nullptr);
-
     env->DeleteLocalRef(matrix);
 }
 
@@ -145,6 +145,7 @@ extern "C" {
 
 JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_initNativeEngine(JNIEnv* env, jobject obj, jboolean dark) {
+    engine.ready = false;
     engine.activityObj = env->NewGlobalRef(obj);
     engine.darkTheme = dark;
     
@@ -153,24 +154,18 @@ Java_com_night_backgroundchange_MainActivity_initNativeEngine(JNIEnv* env, jobje
         engine.playSoundMid = env->GetMethodID(actCls, "playSound", "(I)V");
     }
 
-    // Safety Loading Class References
     jclass localMatrixCls = env->FindClass("android/graphics/Matrix");
     if (localMatrixCls) {
         engine.matrixCls = (jclass)env->NewGlobalRef(localMatrixCls);
         env->DeleteLocalRef(localMatrixCls);
-    } else {
-        LOGE("Failed to find Matrix class");
     }
 
     jclass localCanvasCls = env->FindClass("android/graphics/Canvas");
     if (localCanvasCls) {
         engine.canvasCls = (jclass)env->NewGlobalRef(localCanvasCls);
         env->DeleteLocalRef(localCanvasCls);
-    } else {
-        LOGE("Failed to find Canvas class");
     }
 
-    // Get Method IDs with safety checks
     if (engine.matrixCls) {
         engine.matrixInit = env->GetMethodID(engine.matrixCls, "<init>", "()V");
         engine.matrixSetRotate = env->GetMethodID(engine.matrixCls, "setRotate", "(FFF)Z");
@@ -184,15 +179,16 @@ Java_com_night_backgroundchange_MainActivity_initNativeEngine(JNIEnv* env, jobje
     }
 
     engine.initLevel(1);
+    engine.ready = true;
 }
 
 JNIEXPORT void JNICALL
-Java_com_night_backgroundchange_MainActivity_nativePushAsset(JNIEnv* env, jobject obj, jstring name, jobject bmp) {
-    if (!bmp) return;
-    const char* utfName = env->GetStringUTFChars(name, nullptr);
-    if (utfName) {
-        engine.assets[std::string(utfName)] = env->NewGlobalRef(bmp);
-        env->ReleaseStringUTFChars(name, utfName);
+Java_com_night_backgroundchange_MainActivity_nativePushAsset(JNIEnv* env, jobject obj, jint index, jobject bmp) {
+    if (index >= 0 && index < ASSET_COUNT && bmp) {
+        if (engine.assets[index] != nullptr) {
+            env->DeleteGlobalRef(engine.assets[index]);
+        }
+        engine.assets[index] = env->NewGlobalRef(bmp);
     }
 }
 
@@ -205,22 +201,20 @@ Java_com_night_backgroundchange_MainActivity_nativeOnResize(JNIEnv* env, jobject
 
 JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject obj, jobject canvas) {
-    if (!canvas) return;
+    if (!canvas || !engine.ready || !engine.canvasDrawColor) return;
 
-    if (engine.canvasDrawColor) {
-        int bgColor = engine.darkTheme ? 0xFF121212 : 0xFFF5F5F5;
-        env->CallVoidMethod(canvas, engine.canvasDrawColor, bgColor);
-    }
+    int bgColor = engine.darkTheme ? 0xFF121212 : 0xFFF5F5F5;
+    env->CallVoidMethod(canvas, engine.canvasDrawColor, bgColor);
 
-    auto playBmp = engine.assets.count("play") ? engine.assets["play"] : nullptr;
-    auto tileBmp = engine.assets.count("tile") ? engine.assets["tile"] : nullptr;
-    auto glowBmp = engine.assets.count("glow") ? engine.assets["glow"] : nullptr;
-    auto arrowBmp = engine.assets.count("arrow") ? engine.assets["arrow"] : nullptr;
-    auto starBmp = engine.assets.count("star") ? engine.assets["star"] : nullptr;
-    auto nextBmp = engine.assets.count("next") ? engine.assets["next"] : nullptr;
+    jobject playBmp  = engine.assets[ASSET_PLAY];
+    jobject tileBmp  = engine.assets[ASSET_TILE];
+    jobject glowBmp  = engine.assets[ASSET_GLOW];
+    jobject arrowBmp = engine.assets[ASSET_ARROW];
+    jobject starBmp  = engine.assets[ASSET_STAR];
+    jobject nextBmp  = engine.assets[ASSET_NEXT];
 
     if (engine.state == MENU) {
-        drawBitmapNative(env, canvas, playBmp, engine.screenW/2.0f - 75, engine.screenH/2.0f - 75, 1.5f, 0);
+        if (playBmp) drawBitmapNative(env, canvas, playBmp, engine.screenW/2.0f - 75, engine.screenH/2.0f - 75, 1.5f, 0);
         return;
     }
 
@@ -232,10 +226,10 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         allCleared = false;
         float drawX = engine.offsetX + a.gx * engine.tileSize;
         float drawY = engine.offsetY + a.gy * engine.tileSize;
-        drawBitmapNative(env, canvas, tileBmp, drawX, drawY, engine.tileSize/100.0f, 0);
+        if (tileBmp) drawBitmapNative(env, canvas, tileBmp, drawX, drawY, engine.tileSize/100.0f, 0);
     }
 
-    // 2. Update and Render Arrows
+    // 2. Render Arrows
     for (auto& a : engine.arrows) {
         if (!a.active) continue;
 
@@ -254,27 +248,30 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         float drawX = engine.offsetX + a.curX * engine.tileSize;
         float drawY = engine.offsetY + a.curY * engine.tileSize;
         
-        if (a.exiting) {
+        if (a.exiting && glowBmp) {
             drawBitmapNative(env, canvas, glowBmp, drawX, drawY, engine.tileSize/100.0f, 0);
         }
 
-        drawBitmapNative(env, canvas, arrowBmp, drawX, drawY, (engine.tileSize/100.0f) * a.scale, (float)a.dir);
+        if (arrowBmp) {
+            drawBitmapNative(env, canvas, arrowBmp, drawX, drawY, (engine.tileSize/100.0f) * a.scale, (float)a.dir);
+        }
     }
 
-    // 3. Victory Check
     if (allCleared && engine.state == PLAYING) {
         engine.state = VICTORY;
         engine.triggerSound(env, 1);
     }
 
     if (engine.state == VICTORY) {
-        drawBitmapNative(env, canvas, starBmp, engine.screenW/2.0f - 100, engine.screenH/4.0f, 2.0f, 0);
-        drawBitmapNative(env, canvas, nextBmp, engine.screenW/2.0f - 75, engine.screenH/2.0f + 100, 1.5f, 0);
+        if (starBmp) drawBitmapNative(env, canvas, starBmp, engine.screenW/2.0f - 100, engine.screenH/4.0f, 2.0f, 0);
+        if (nextBmp) drawBitmapNative(env, canvas, nextBmp, engine.screenW/2.0f - 75, engine.screenH/2.0f + 100, 1.5f, 0);
     }
 }
 
 JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject obj, jfloat x, jfloat y) {
+    if (!engine.ready) return;
+    
     if (engine.state == MENU) {
         engine.state = PLAYING;
         return;
