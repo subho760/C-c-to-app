@@ -10,6 +10,7 @@
 
 #define LOG_TAG "NativeGame"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 
 // --- Constants & Enums ---
 enum Direction { UP = 270, RIGHT = 0, DOWN = 90, LEFT = 180 };
@@ -28,18 +29,16 @@ struct Arrow {
 
 class GameEngine {
 public:
-    // UI & State
     GameState state = MENU;
     int level = 1;
     bool darkTheme = true;
     int screenW = 0, screenH = 0;
 
-    // Grid Logic
     int gridW, gridH;
     float tileSize, offsetX, offsetY;
     std::vector<Arrow> arrows;
 
-    // JNI Cached References (Global references to prevent memory overflows)
+    // JNI Global References
     jobject activityObj = nullptr;
     std::map<std::string, jobject> assets;
     
@@ -125,18 +124,17 @@ public:
 
 static GameEngine engine;
 
-// Re-uses global descriptors without generating local reference overhead leaks
 void drawBitmapNative(JNIEnv* env, jobject canvas, jobject bitmap, float x, float y, float scale, float angle) {
-    if (!canvas || !bitmap || !engine.matrixCls || !engine.canvasDrawBitmap) return;
+    if (!canvas || !bitmap || !engine.matrixCls || !engine.matrixInit || !engine.canvasDrawBitmap) return;
 
     jobject matrix = env->NewObject(engine.matrixCls, engine.matrixInit);
     if (!matrix) return;
     
     float pivot = 50.0f; 
 
-    env->CallBooleanMethod(matrix, engine.matrixSetRotate, angle, pivot, pivot);
-    env->CallBooleanMethod(matrix, engine.matrixPostScale, scale, scale, pivot, pivot);
-    env->CallBooleanMethod(matrix, engine.matrixPostTranslate, x, y);
+    if (engine.matrixSetRotate) env->CallBooleanMethod(matrix, engine.matrixSetRotate, angle, pivot, pivot);
+    if (engine.matrixPostScale) env->CallBooleanMethod(matrix, engine.matrixPostScale, scale, scale, pivot, pivot);
+    if (engine.matrixPostTranslate) env->CallBooleanMethod(matrix, engine.matrixPostTranslate, x, y);
 
     env->CallVoidMethod(canvas, engine.canvasDrawBitmap, bitmap, matrix, nullptr);
 
@@ -151,25 +149,39 @@ Java_com_night_backgroundchange_MainActivity_initNativeEngine(JNIEnv* env, jobje
     engine.darkTheme = dark;
     
     jclass actCls = env->GetObjectClass(obj);
-    engine.playSoundMid = env->GetMethodID(actCls, "playSound", "(I)V");
+    if (actCls) {
+        engine.playSoundMid = env->GetMethodID(actCls, "playSound", "(I)V");
+    }
 
-    // Cache as Global Refs so they survive frame-by-frame draw loops safely
+    // Safety Loading Class References
     jclass localMatrixCls = env->FindClass("android/graphics/Matrix");
-    engine.matrixCls = (jclass)env->NewGlobalRef(localMatrixCls);
-    env->DeleteLocalRef(localMatrixCls);
+    if (localMatrixCls) {
+        engine.matrixCls = (jclass)env->NewGlobalRef(localMatrixCls);
+        env->DeleteLocalRef(localMatrixCls);
+    } else {
+        LOGE("Failed to find Matrix class");
+    }
 
     jclass localCanvasCls = env->FindClass("android/graphics/Canvas");
-    engine.canvasCls = (jclass)env->NewGlobalRef(localCanvasCls);
-    env->DeleteLocalRef(localCanvasCls);
+    if (localCanvasCls) {
+        engine.canvasCls = (jclass)env->NewGlobalRef(localCanvasCls);
+        env->DeleteLocalRef(localCanvasCls);
+    } else {
+        LOGE("Failed to find Canvas class");
+    }
 
-    // Cache layout structures
-    engine.matrixInit = env->GetMethodID(engine.matrixCls, "<init>", "()V");
-    engine.matrixSetRotate = env->GetMethodID(engine.matrixCls, "setRotate", "(FFF)Z");
-    engine.matrixPostTranslate = env->GetMethodID(engine.matrixCls, "postTranslate", "(FF)Z");
-    engine.matrixPostScale = env->GetMethodID(engine.matrixCls, "postScale", "(FFFF)Z");
-    
-    engine.canvasDrawBitmap = env->GetMethodID(engine.canvasCls, "drawBitmap", "(Landroid/graphics/Bitmap;Landroid/graphics/Matrix;Landroid/graphics/Paint;)V");
-    engine.canvasDrawColor = env->GetMethodID(engine.canvasCls, "drawColor", "(I)V");
+    // Get Method IDs with safety checks
+    if (engine.matrixCls) {
+        engine.matrixInit = env->GetMethodID(engine.matrixCls, "<init>", "()V");
+        engine.matrixSetRotate = env->GetMethodID(engine.matrixCls, "setRotate", "(FFF)Z");
+        engine.matrixPostTranslate = env->GetMethodID(engine.matrixCls, "postTranslate", "(FF)Z");
+        engine.matrixPostScale = env->GetMethodID(engine.matrixCls, "postScale", "(FFFF)Z");
+    }
+
+    if (engine.canvasCls) {
+        engine.canvasDrawBitmap = env->GetMethodID(engine.canvasCls, "drawBitmap", "(Landroid/graphics/Bitmap;Landroid/graphics/Matrix;Landroid/graphics/Paint;)V");
+        engine.canvasDrawColor = env->GetMethodID(engine.canvasCls, "drawColor", "(I)V");
+    }
 
     engine.initLevel(1);
 }
@@ -178,8 +190,10 @@ JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativePushAsset(JNIEnv* env, jobject obj, jstring name, jobject bmp) {
     if (!bmp) return;
     const char* utfName = env->GetStringUTFChars(name, nullptr);
-    engine.assets[std::string(utfName)] = env->NewGlobalRef(bmp);
-    env->ReleaseStringUTFChars(name, utfName);
+    if (utfName) {
+        engine.assets[std::string(utfName)] = env->NewGlobalRef(bmp);
+        env->ReleaseStringUTFChars(name, utfName);
+    }
 }
 
 JNIEXPORT void JNICALL
@@ -191,10 +205,12 @@ Java_com_night_backgroundchange_MainActivity_nativeOnResize(JNIEnv* env, jobject
 
 JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject obj, jobject canvas) {
-    if (!canvas || !engine.canvasDrawColor) return;
+    if (!canvas) return;
 
-    int bgColor = engine.darkTheme ? 0xFF121212 : 0xFFF5F5F5;
-    env->CallVoidMethod(canvas, engine.canvasDrawColor, bgColor);
+    if (engine.canvasDrawColor) {
+        int bgColor = engine.darkTheme ? 0xFF121212 : 0xFFF5F5F5;
+        env->CallVoidMethod(canvas, engine.canvasDrawColor, bgColor);
+    }
 
     auto playBmp = engine.assets.count("play") ? engine.assets["play"] : nullptr;
     auto tileBmp = engine.assets.count("tile") ? engine.assets["tile"] : nullptr;
