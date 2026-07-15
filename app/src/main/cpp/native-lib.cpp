@@ -47,6 +47,7 @@ public:
     jobject assets[ASSET_COUNT] = { nullptr };
     
     jclass canvasCls = nullptr;
+    jclass bitmapCls = nullptr;
     
     jmethodID canvasDrawColor = nullptr;
     jmethodID canvasSave = nullptr;
@@ -55,6 +56,8 @@ public:
     jmethodID canvasScale = nullptr;
     jmethodID canvasDrawBitmap = nullptr;
     jmethodID canvasRestore = nullptr;
+    jmethodID bitmapGetWidth = nullptr;
+    jmethodID bitmapGetHeight = nullptr;
     jmethodID playSoundMid = nullptr;
 
     GameEngine() = default;
@@ -129,14 +132,21 @@ void drawBitmapNative(JNIEnv* env, jobject canvas, jobject bitmap, float x, floa
     if (!canvas || !bitmap || !engine.canvasSave || !engine.canvasTranslate || 
         !engine.canvasRotate || !engine.canvasScale || !engine.canvasDrawBitmap || !engine.canvasRestore) return;
 
-    // Use pure Canvas transformations to prevent reference allocation drops
+    // Get asset frame size safely to calculate exact local pivot bounds
+    jint bmpW = 100;
+    jint bmpH = 100;
+    if (engine.bitmapGetWidth) bmpW = env->CallIntMethod(bitmap, engine.bitmapGetWidth);
+    if (engine.bitmapGetHeight) bmpH = env->CallIntMethod(bitmap, engine.bitmapGetHeight);
+
+    jfloat pivotX = (jfloat)bmpW / 2.0f;
+    jfloat pivotY = (jfloat)bmpH / 2.0f;
+
     env->CallIntMethod(canvas, engine.canvasSave);
     
-    env->CallVoidMethod(canvas, engine.canvasTranslate, x, y);
-    
-    float pivot = 50.0f;
-    env->CallVoidMethod(canvas, engine.canvasRotate, angle, pivot, pivot);
-    env->CallVoidMethod(canvas, engine.canvasScale, scale, scale, pivot, pivot);
+    // Explicit jfloat casts protect system registers from hardware precision drops
+    env->CallVoidMethod(canvas, engine.canvasTranslate, (jfloat)x, (jfloat)y);
+    env->CallVoidMethod(canvas, engine.canvasRotate, (jfloat)angle, pivotX, pivotY);
+    env->CallVoidMethod(canvas, engine.canvasScale, (jfloat)scale, (jfloat)scale, pivotX, pivotY);
     
     env->CallVoidMethod(canvas, engine.canvasDrawBitmap, bitmap, 0.0f, 0.0f, nullptr);
     
@@ -162,6 +172,12 @@ Java_com_night_backgroundchange_MainActivity_initNativeEngine(JNIEnv* env, jobje
         env->DeleteLocalRef(localCanvasCls);
     }
 
+    jclass localBitmapCls = env->FindClass("android/graphics/Bitmap");
+    if (localBitmapCls) {
+        engine.bitmapCls = (jclass)env->NewGlobalRef(localBitmapCls);
+        env->DeleteLocalRef(localBitmapCls);
+    }
+
     if (engine.canvasCls) {
         engine.canvasDrawColor = env->GetMethodID(engine.canvasCls, "drawColor", "(I)V");
         engine.canvasSave = env->GetMethodID(engine.canvasCls, "save", "()I");
@@ -170,6 +186,11 @@ Java_com_night_backgroundchange_MainActivity_initNativeEngine(JNIEnv* env, jobje
         engine.canvasScale = env->GetMethodID(engine.canvasCls, "scale", "(FFFF)V");
         engine.canvasDrawBitmap = env->GetMethodID(engine.canvasCls, "drawBitmap", "(Landroid/graphics/Bitmap;FFLandroid/graphics/Paint;)V");
         engine.canvasRestore = env->GetMethodID(engine.canvasCls, "restore", "()V");
+    }
+
+    if (engine.bitmapCls) {
+        engine.bitmapGetWidth = env->GetMethodID(engine.bitmapCls, "getWidth", "()I");
+        engine.bitmapGetHeight = env->GetMethodID(engine.bitmapCls, "getHeight", "()I");
     }
 
     engine.initLevel(1);
