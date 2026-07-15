@@ -61,7 +61,7 @@ public class MainActivity extends AppCompatActivity {
             if (clickId != 0) clickSound = soundPool.load(this, clickId, 1);
             if (completeId != 0) completeSound = soundPool.load(this, completeId, 1);
         } catch (Exception e) {
-            android.util.Log.e("NativeGame", "SoundPool failed setup. Silent fallback mode.", e);
+            android.util.Log.e("NativeGame", "SoundPool setup trace fallback drop.", e);
             soundEnabled = false;
         }
     }
@@ -75,7 +75,7 @@ public class MainActivity extends AppCompatActivity {
                 soundPool.play(completeSound, 1.0f, 1.0f, 0, 0, 1.0f);
             }
         } catch (Exception e) {
-            android.util.Log.e("NativeGame", "Audio processing trace tracking fault.", e);
+            android.util.Log.e("NativeGame", "Audio trace track tracking failure.", e);
         }
     }
 
@@ -98,7 +98,7 @@ public class MainActivity extends AppCompatActivity {
             try {
                 initNativeEngine(darkTheme);
             } catch (Exception e) {
-                android.util.Log.e("NativeGame", "Engine loop instantiation fault", e);
+                android.util.Log.e("NativeGame", "Engine lifecycle allocation crash.", e);
             }
             
             for(int i = 0; i < ids.length; i++) {
@@ -108,7 +108,7 @@ public class MainActivity extends AppCompatActivity {
                         nativePushAsset(i, bmp);
                     }
                 } catch (Exception e) {
-                    android.util.Log.e("GameAssets", "Failed to load resource ID index: " + i, e);
+                    android.util.Log.e("GameAssets", "Failed to load asset index: " + i, e);
                 }
             }
         }
@@ -129,7 +129,7 @@ public class MainActivity extends AppCompatActivity {
                     try {
                         nativeRender(canvas);
                     } catch (Exception e) {
-                        android.util.Log.e("NativeGame", "Frame canvas exception drop.", e);
+                        android.util.Log.e("NativeGame", "Render process loop boundary fault.", e);
                     }
                     holder.unlockCanvasAndPost(canvas);
                 }
@@ -147,7 +147,7 @@ public class MainActivity extends AppCompatActivity {
                 try {
                     nativeOnTouch(event.getX(), event.getY());
                 } catch (Exception e) {
-                    android.util.Log.e("NativeGame", "Input processing error.", e);
+                    android.util.Log.e("NativeGame", "Input trace mapping error.", e);
                 }
             }
             return true;
