@@ -1,9 +1,15 @@
 package com.night.backgroundchange;
 
 import android.content.Context;
+import android.content.Intent;
+import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.ColorFilter;
+import android.graphics.ColorMatrixColorFilter;
+import android.graphics.Paint;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
@@ -31,6 +37,33 @@ public class MainActivity extends AppCompatActivity {
         setContentView(gameView);
     }
 
+    // Dynamic tint helper invoked from native C++ code to recolor white assets
+    public Paint getTintedPaint(int colorHex) {
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        int r = (colorHex >> 16) & 0xFF;
+        int g = (colorHex >> 8) & 0xFF;
+        int b = colorHex & 0xFF;
+
+        float[] colorMatrix = new float[]{
+                0, 0, 0, 0, r,
+                0, 0, 0, 0, g,
+                0, 0, 0, 0, b,
+                0, 0, 0, 1, 0
+        };
+        ColorFilter filter = new ColorMatrixColorFilter(colorMatrix);
+        paint.setColorFilter(filter);
+        return paint;
+    }
+
+    // Dynamic theme reload trigger called when theme option changes
+    public void triggerThemeRebuild() {
+        runOnUiThread(() -> {
+            boolean isSystemDark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) 
+                    == Configuration.UI_MODE_NIGHT_YES;
+            initNativeEngine(isSystemDark);
+        });
+    }
+
     class StructuralGameView extends SurfaceView implements SurfaceHolder.Callback, Runnable {
         private Thread renderThread;
         private volatile boolean isRunning;
@@ -41,14 +74,18 @@ public class MainActivity extends AppCompatActivity {
             surfaceHolder = getHolder();
             surfaceHolder.addCallback(this);
 
-            initNativeEngine(true);
+            boolean isSystemDark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) 
+                    == Configuration.UI_MODE_NIGHT_YES;
+            initNativeEngine(isSystemDark);
 
+            // Correctly bind raw drawable resources
             int[] structuralDrawableIds = {
                 R.drawable.arrow, R.drawable.tile, R.drawable.glow, R.drawable.back,
                 R.drawable.home, R.drawable.retry, R.drawable.next, R.drawable.play,
                 R.drawable.paused, R.drawable.settings, R.drawable.sound_on,
                 R.drawable.soundoff, R.drawable.tick, R.drawable.star,
-                R.drawable.hint, R.drawable.close, R.drawable.lock
+                R.drawable.hint, R.drawable.close, R.drawable.lock, R.drawable.share,
+                R.drawable.level, R.drawable.watchads
             };
 
             for (int i = 0; i < structuralDrawableIds.length; i++) {
@@ -111,7 +148,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    public native void initNativeEngine(boolean darkTheme);
+    public native void initNativeEngine(boolean systemDark);
     public native void nativePushAsset(int index, Bitmap bitmap);
     public native void nativeRender(Canvas canvas);
     public native void nativeOnTouch(float x, float y);
