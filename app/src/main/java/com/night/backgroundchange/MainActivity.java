@@ -75,7 +75,7 @@ public class MainActivity extends AppCompatActivity {
                 soundPool.play(completeSound, 1.0f, 1.0f, 0, 0, 1.0f);
             }
         } catch (Exception e) {
-            android.util.Log.e("NativeGame", "Audio trace track tracking failure.", e);
+            android.util.Log.e("NativeGame", "Audio runtime playback tracking failure.", e);
         }
     }
 
