@@ -25,7 +25,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             System.loadLibrary("native-lib");
         } catch (UnsatisfiedLinkError e) {
-            android.util.Log.e("NativeGame", "Failed to load native-lib library binary file", e);
+            android.util.Log.e("NativeGame", "Failed to load native-lib binary.", e);
         }
     }
 
@@ -61,21 +61,16 @@ public class MainActivity extends AppCompatActivity {
             if (clickId != 0) clickSound = soundPool.load(this, clickId, 1);
             if (completeId != 0) completeSound = soundPool.load(this, completeId, 1);
         } catch (Exception e) {
-            android.util.Log.e("NativeGame", "SoundPool setup trace fallback drop.", e);
             soundEnabled = false;
         }
     }
 
     public void playSound(int type) {
         if (!soundEnabled || soundPool == null) return;
-        try {
-            if (type == 0 && clickSound != -1) {
-                soundPool.play(clickSound, 1.0f, 1.0f, 0, 0, 1.0f);
-            } else if (type == 1 && completeSound != -1) {
-                soundPool.play(completeSound, 1.0f, 1.0f, 0, 0, 1.0f);
-            }
-        } catch (Exception e) {
-            android.util.Log.e("NativeGame", "Audio runtime playback tracking failure.", e);
+        if (type == 0 && clickSound != -1) {
+            soundPool.play(clickSound, 1.0f, 1.0f, 0, 0, 1.0f);
+        } else if (type == 1 && completeSound != -1) {
+            soundPool.play(completeSound, 1.0f, 1.0f, 0, 0, 1.0f);
         }
     }
 
@@ -95,11 +90,7 @@ public class MainActivity extends AppCompatActivity {
                          R.drawable.soundoff, R.drawable.tick, R.drawable.star, 
                          R.drawable.hint, R.drawable.close, R.drawable.lock};
             
-            try {
-                initNativeEngine(darkTheme);
-            } catch (Exception e) {
-                android.util.Log.e("NativeGame", "Engine lifecycle allocation crash.", e);
-            }
+            initNativeEngine(darkTheme);
             
             for(int i = 0; i < ids.length; i++) {
                 try {
@@ -108,7 +99,7 @@ public class MainActivity extends AppCompatActivity {
                         nativePushAsset(i, bmp);
                     }
                 } catch (Exception e) {
-                    android.util.Log.e("GameAssets", "Failed to load asset index: " + i, e);
+                    android.util.Log.e("GameAssets", "Asset binding trace fault index: " + i, e);
                 }
             }
         }
@@ -126,11 +117,7 @@ public class MainActivity extends AppCompatActivity {
                 if (!holder.getSurface().isValid()) continue;
                 Canvas canvas = holder.lockCanvas();
                 if (canvas != null) {
-                    try {
-                        nativeRender(canvas);
-                    } catch (Exception e) {
-                        android.util.Log.e("NativeGame", "Render process loop boundary fault.", e);
-                    }
+                    nativeRender(canvas);
                     holder.unlockCanvasAndPost(canvas);
                 }
                 try {
@@ -144,22 +131,14 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public boolean onTouchEvent(MotionEvent event) {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
-                try {
-                    nativeOnTouch(event.getX(), event.getY());
-                } catch (Exception e) {
-                    android.util.Log.e("NativeGame", "Input trace mapping error.", e);
-                }
+                nativeOnTouch(event.getX(), event.getY());
             }
             return true;
         }
 
         @Override
         public void surfaceChanged(SurfaceHolder h, int f, int w, int h1) {
-            try {
-                nativeOnResize(w, h1);
-            } catch (Exception e) {
-                android.util.Log.e("NativeGame", "Resize lifecycle exception.", e);
-            }
+            nativeOnResize(w, h1);
         }
         
         @Override
