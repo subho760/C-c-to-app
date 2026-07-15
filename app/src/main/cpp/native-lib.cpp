@@ -128,22 +128,24 @@ public:
 
 static GameEngine engine;
 
-void drawBitmapNative(JNIEnv* env, jobject canvas, jobject bitmap, float x, float y, float scale, float angle) {
+// Hardened to auto-calculate exact scaling relative to physical bitmap sizes
+void drawBitmapNative(JNIEnv* env, jobject canvas, jobject bitmap, float x, float y, float targetWidth, float angle) {
     if (!canvas || !bitmap || !engine.canvasSave || !engine.canvasTranslate || 
         !engine.canvasRotate || !engine.canvasScale || !engine.canvasDrawBitmap || !engine.canvasRestore) return;
 
-    // Get asset frame size safely to calculate exact local pivot bounds
     jint bmpW = 100;
     jint bmpH = 100;
     if (engine.bitmapGetWidth) bmpW = env->CallIntMethod(bitmap, engine.bitmapGetWidth);
     if (engine.bitmapGetHeight) bmpH = env->CallIntMethod(bitmap, engine.bitmapGetHeight);
+
+    // Calculate dynamic scaling ratio to neutralize Android screen density scaling factors
+    float scale = targetWidth / (float)bmpW;
 
     jfloat pivotX = (jfloat)bmpW / 2.0f;
     jfloat pivotY = (jfloat)bmpH / 2.0f;
 
     env->CallIntMethod(canvas, engine.canvasSave);
     
-    // Explicit jfloat casts protect system registers from hardware precision drops
     env->CallVoidMethod(canvas, engine.canvasTranslate, (jfloat)x, (jfloat)y);
     env->CallVoidMethod(canvas, engine.canvasRotate, (jfloat)angle, pivotX, pivotY);
     env->CallVoidMethod(canvas, engine.canvasScale, (jfloat)scale, (jfloat)scale, pivotX, pivotY);
@@ -229,19 +231,22 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     jobject nextBmp  = engine.assets[ASSET_NEXT];
 
     if (engine.state == MENU) {
-        if (playBmp) drawBitmapNative(env, canvas, playBmp, engine.screenW/2.0f - 75, engine.screenH/2.0f - 75, 1.5f, 0);
+        if (playBmp) {
+            float playSize = engine.screenW * 0.35f;
+            drawBitmapNative(env, canvas, playBmp, engine.screenW / 2.0f - playSize / 2.0f, engine.screenH / 2.0f - playSize / 2.0f, playSize, 0);
+        }
         return;
     }
 
     bool allCleared = true;
 
-    // 1. Render Background Tiles
+    // 1. Render Background Grid Tiles
     for (auto& a : engine.arrows) {
         if (!a.active) continue;
         allCleared = false;
         float drawX = engine.offsetX + a.gx * engine.tileSize;
         float drawY = engine.offsetY + a.gy * engine.tileSize;
-        if (tileBmp) drawBitmapNative(env, canvas, tileBmp, drawX, drawY, engine.tileSize/100.0f, 0);
+        if (tileBmp) drawBitmapNative(env, canvas, tileBmp, drawX, drawY, engine.tileSize, 0);
     }
 
     // 2. Render Interactive Arrows
@@ -264,11 +269,11 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         float drawY = engine.offsetY + a.curY * engine.tileSize;
         
         if (a.exiting && glowBmp) {
-            drawBitmapNative(env, canvas, glowBmp, drawX, drawY, engine.tileSize/100.0f, 0);
+            drawBitmapNative(env, canvas, glowBmp, drawX, drawY, engine.tileSize, 0);
         }
 
         if (arrowBmp) {
-            drawBitmapNative(env, canvas, arrowBmp, drawX, drawY, (engine.tileSize/100.0f) * a.scale, (float)a.dir);
+            drawBitmapNative(env, canvas, arrowBmp, drawX, drawY, engine.tileSize * a.scale, (float)a.dir);
         }
     }
 
@@ -278,8 +283,10 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     }
 
     if (engine.state == VICTORY) {
-        if (starBmp) drawBitmapNative(env, canvas, starBmp, engine.screenW/2.0f - 100, engine.screenH/4.0f, 2.0f, 0);
-        if (nextBmp) drawBitmapNative(env, canvas, nextBmp, engine.screenW/2.0f - 75, engine.screenH/2.0f + 100, 1.5f, 0);
+        float starSize = engine.screenW * 0.5f;
+        float nextSize = engine.screenW * 0.3f;
+        if (starBmp) drawBitmapNative(env, canvas, starBmp, engine.screenW / 2.0f - starSize / 2.0f, engine.screenH / 4.0f, starSize, 0);
+        if (nextBmp) drawBitmapNative(env, canvas, nextBmp, engine.screenW / 2.0f - nextSize / 2.0f, engine.screenH / 2.0f + starSize / 2.0f, nextSize, 0);
     }
 }
 
