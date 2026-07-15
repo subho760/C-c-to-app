@@ -22,7 +22,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Go full screen immersion mapping
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_FULLSCREEN |
                 View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
@@ -44,7 +43,6 @@ public class MainActivity extends AppCompatActivity {
 
             initNativeEngine(true);
 
-            // Bind the essential components used directly in layout structures
             int[] structuralDrawableIds = {
                 R.drawable.arrow, R.drawable.tile, R.drawable.glow, R.drawable.back,
                 R.drawable.home, R.drawable.retry, R.drawable.next, R.drawable.play,
@@ -60,7 +58,7 @@ public class MainActivity extends AppCompatActivity {
                         nativePushAsset(i, bmp);
                     }
                 } catch (Exception e) {
-                    android.util.Log.e("UIStructure", "Failed loading index reference layout asset ID: " + i);
+                    android.util.Log.e("UIStructure", "Failed loading index: " + i);
                 }
             }
         }
@@ -82,7 +80,7 @@ public class MainActivity extends AppCompatActivity {
                     surfaceHolder.unlockCanvasAndPost(canvas);
                 }
                 try {
-                    Thread.sleep(16); // Clean stable 60Hz tick frequency
+                    Thread.sleep(16);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
