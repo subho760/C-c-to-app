@@ -6,8 +6,7 @@
 #define LOG_TAG "GameUI"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
 
-// Clean state structure definitions
-enum GameState { STATE_LOADING, STATE_HOME, STATE_SETTINGS, STATE_GAMEPLAY };
+enum GameState { STATE_LOADING, STATE_HOME, STATE_SETTINGS, STATE_GAMEPLAY, STATE_PAUSED };
 
 enum AssetIndex {
     ASSET_ARROW = 0, ASSET_TILE, ASSET_GLOW, ASSET_BACK, ASSET_HOME,
@@ -18,7 +17,8 @@ enum AssetIndex {
 
 struct ClickableButton {
     float x, y, w, h;
-    int actionCode;
+    int actionCode; // Unique action ID
+    int levelValue; // Linked level if applicable
 };
 
 class GameMenuStructure {
@@ -29,12 +29,15 @@ public:
     int screenHeight = 0;
     float loadingProgress = 0.0f;
     bool engineInitialized = false;
+    bool audioEnabled = true;
 
-    // Bound Asset Global References
+    // Level unlock states (Level 1 is unlocked by default)
+    bool levelsUnlocked[10] = {true, false, false, false, false, false, false, false, false, false};
+
     jobject assetBitmaps[ASSET_COUNT] = { nullptr };
     std::vector<ClickableButton> UIButtons;
 
-    // Canvas drawing method pointers
+    // JNI Canvas drawing helpers
     jclass canvasClass = nullptr;
     jclass paintClass = nullptr;
     jclass bitmapClass = nullptr;
@@ -55,7 +58,6 @@ public:
 
 static GameMenuStructure gameUI;
 
-// Helper to draw bitmaps via native layer
 void renderBmp(JNIEnv* env, jobject canvas, jobject bitmap, float leftX, float topY, float forcedWidth) {
     if (!canvas || !bitmap || !gameUI.midSave) return;
 
@@ -70,6 +72,16 @@ void renderBmp(JNIEnv* env, jobject canvas, jobject bitmap, float leftX, float t
     env->CallVoidMethod(canvas, gameUI.midScale, (jfloat)scaleFactor, (jfloat)scaleFactor, 0.0f, 0.0f);
     env->CallVoidMethod(canvas, gameUI.midDrawBitmap, bitmap, 0.0f, 0.0f, nullptr);
     env->CallVoidMethod(canvas, gameUI.midRestore);
+}
+
+// Find which level is the exact next locked level
+int getNextUnlockableLevel() {
+    for (int i = 0; i < 10; i++) {
+        if (!gameUI.levelsUnlocked[i]) {
+            return i; // Index of the next level to unlock
+        }
+    }
+    return -1;
 }
 
 extern "C" {
@@ -112,8 +124,8 @@ Java_com_night_backgroundchange_MainActivity_initNativeEngine(JNIEnv* env, jobje
         jmethodID setTextSize = env->GetMethodID(gameUI.paintClass, "setTextSize", "(F)V");
         
         env->CallVoidMethod(tempPaint, setAntiAlias, JNI_TRUE);
-        env->CallVoidMethod(tempPaint, setColor, 0xFFFFFFFF); // White UI Text color
-        env->CallVoidMethod(tempPaint, setTextSize, 60.0f);
+        env->CallVoidMethod(tempPaint, setColor, 0xFF000000); // Black UI Text color
+        env->CallVoidMethod(tempPaint, setTextSize, 45.0f);
         gameUI.paintTextReference = env->NewGlobalRef(tempPaint);
         env->DeleteLocalRef(tempPaint);
     }
@@ -138,19 +150,18 @@ JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject obj, jobject canvas) {
     if (!canvas || !gameUI.engineInitialized || !gameUI.midDrawColor) return;
 
-    // Draw dark base background color layout
-    env->CallVoidMethod(canvas, gameUI.midDrawColor, 0xFF121212);
+    // Set White background color
+    env->CallVoidMethod(canvas, gameUI.midDrawColor, 0xFFFFFFFF);
     gameUI.UIButtons.clear();
 
-    // --- SCREEN STATE 1: LOADING PAGE ---
+    // --- STATE 1: LOADING PAGE ---
     if (gameUI.currentState == STATE_LOADING) {
-        gameUI.loadingProgress += 0.02f; // Increment load bar structurally
+        gameUI.loadingProgress += 0.02f;
         if (gameUI.loadingProgress >= 1.0f) {
-            gameUI.currentState = STATE_HOME; // Open Home instantly when loaded
+            gameUI.currentState = STATE_HOME;
         }
 
-        // Render simple Text info tracking
-        jstring loadStr = env->NewStringUTF("LOADING LAYOUT...");
+        jstring loadStr = env->NewStringUTF("LOADING ASSETS...");
         if (gameUI.midDrawText && gameUI.paintTextReference) {
             env->CallVoidMethod(canvas, gameUI.midDrawText, loadStr, (jfloat)(gameUI.screenWidth * 0.25f), (jfloat)(gameUI.screenHeight * 0.5f), gameUI.paintTextReference);
         }
@@ -158,79 +169,168 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         return;
     }
 
-    // --- SCREEN STATE 2: HOME SCREEN PAGE ---
+    // --- STATE 2: HOME SCREEN ---
     if (gameUI.currentState == STATE_HOME) {
-        
-        // 1. Head of the game showing the level play number
-        std::string lvlText = "LEVEL " + std::to_string(gameUI.currentPlayingLevel);
-        jstring jLvlStr = env->NewStringUTF(lvlText.c_str());
+        // Play text/header layout
+        std::string header = "PLAY LEVEL " + std::to_string(gameUI.currentPlayingLevel);
+        jstring jHeader = env->NewStringUTF(header.c_str());
         if (gameUI.midDrawText && gameUI.paintTextReference) {
-            env->CallVoidMethod(canvas, gameUI.midDrawText, jLvlStr, (jfloat)(gameUI.screenWidth * 0.38f), (jfloat)(gameUI.screenHeight * 0.15f), gameUI.paintTextReference);
+            env->CallVoidMethod(canvas, gameUI.midDrawText, jHeader, (jfloat)(gameUI.screenWidth * 0.32f), (jfloat)(gameUI.screenHeight * 0.1f), gameUI.paintTextReference);
         }
-        env->DeleteLocalRef(jLvlStr);
+        env->DeleteLocalRef(jHeader);
 
-        // 2. Play button directly in the center of the game screen
-        float playBtnWidth = gameUI.screenWidth * 0.35f;
+        // Play Button in the Center
+        float playBtnWidth = gameUI.screenWidth * 0.32f;
         float playX = (gameUI.screenWidth / 2.0f) - (playBtnWidth / 2.0f);
-        float playY = (gameUI.screenHeight / 2.0f) - (playBtnWidth / 2.0f);
+        float playY = (gameUI.screenHeight * 0.22f);
         if (gameUI.assetBitmaps[ASSET_PLAY]) {
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PLAY], playX, playY, playBtnWidth);
-            gameUI.UIButtons.push_back({playX, playY, playBtnWidth, playBtnWidth, 1001}); // Action: Play Trigger
+            gameUI.UIButtons.push_back({playX, playY, playBtnWidth, playBtnWidth, 2001, 0}); // Action Code: Start Gameplay
         }
 
-        // 3. Settings option button placement
-        float settingsWidth = gameUI.screenWidth * 0.15f;
-        float setX = 60.0f; // Left margin layout anchor
-        float setY = gameUI.screenHeight * 0.82f;
-        if (gameUI.assetBitmaps[ASSET_SETTINGS]) {
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_SETTINGS], setX, setY, settingsWidth);
-            gameUI.UIButtons.push_back({setX, setY, settingsWidth, settingsWidth, 1002}); // Action: Open Settings
+        // --- THE 10 LEVELS OPTION MATRIX (Middle-Bottom Section) ---
+        float gridY = gameUI.screenHeight * 0.45f;
+        float btnSize = gameUI.screenWidth * 0.14f;
+        float spacingX = gameUI.screenWidth * 0.04f;
+        float startX = (gameUI.screenWidth - (5 * btnSize + 4 * spacingX)) / 2.0f;
+
+        int nextUnlockableIndex = getNextUnlockableLevel();
+
+        for (int i = 0; i < 10; i++) {
+            int row = i / 5;
+            int col = i % 5;
+            float bx = startX + col * (btnSize + spacingX);
+            float by = gridY + row * (btnSize + spacingX);
+
+            bool isUnlocked = gameUI.levelsUnlocked[i];
+            bool isAdUnlockable = (i == nextUnlockableIndex); // Only the next locked level can be unlocked with ads
+
+            // Store Touch button bounds
+            gameUI.UIButtons.push_back({bx, by, btnSize, btnSize, 3000 + i, i});
+
+            // Draw Level box background border / fill
+            if (isUnlocked) {
+                // Draw normal unlocked button (draw a small indicator or plain number text)
+                std::string lNum = std::to_string(i + 1);
+                jstring jlNum = env->NewStringUTF(lNum.c_str());
+                env->CallVoidMethod(canvas, gameUI.midDrawText, jlNum, bx + (btnSize * 0.3f), by + (btnSize * 0.65f), gameUI.paintTextReference);
+                env->DeleteLocalRef(jlNum);
+            } else {
+                // If locked, draw the lock asset
+                if (gameUI.assetBitmaps[ASSET_LOCK]) {
+                    renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LOCK], bx, by, btnSize);
+                }
+                // If this is the immediate next locked level, draw a Watch Ad helper tag
+                if (isAdUnlockable) {
+                    jstring adTag = env->NewStringUTF("AD");
+                    env->CallVoidMethod(canvas, gameUI.midDrawText, adTag, bx + (btnSize * 0.15f), by - 10.0f, gameUI.paintTextReference);
+                    env->DeleteLocalRef(adTag);
+                }
+            }
         }
 
-        // 4. Bottom right side Home Image occupying approx 10% size allocation
-        float homeImageWidth = gameUI.screenWidth * 0.15f; // Approx 10% scaling width bound
-        float homeX = gameUI.screenWidth - homeImageWidth - 60.0f; // Bottom right aligned placement
-        float homeY = gameUI.screenHeight * 0.82f;
+        // --- BOTTOM ROW: HOME (LEFT) AND SETTING (RIGHT) ---
+        // Home and Settings are scaled 40% smaller (Width multiplied by 0.6)
+        float bottomIconSize = (gameUI.screenWidth * 0.15f) * 0.60f; 
+        float bottomY = gameUI.screenHeight * 0.82f;
+
+        // Home in the Left position
+        float homeX = 60.0f; 
         if (gameUI.assetBitmaps[ASSET_HOME]) {
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HOME], homeX, homeY, homeImageWidth);
-            gameUI.UIButtons.push_back({homeX, homeY, homeImageWidth, homeImageWidth, 1003}); // Action: Home Interaction
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HOME], homeX, bottomY, bottomIconSize);
+            gameUI.UIButtons.push_back({homeX, bottomY, bottomIconSize, bottomIconSize, 2002, 0}); // Go Home Action
+        }
+
+        // Setting in the Right position
+        float setX = gameUI.screenWidth - bottomIconSize - 60.0f;
+        if (gameUI.assetBitmaps[ASSET_SETTINGS]) {
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_SETTINGS], setX, bottomY, bottomIconSize);
+            gameUI.UIButtons.push_back({setX, bottomY, bottomIconSize, bottomIconSize, 2003, 0}); // Settings Action
         }
         return;
     }
 
-    // --- SCREEN STATE 3: SETTINGS OVERLAY PANEL ---
+    // --- STATE 3: SETTINGS VIEW ---
     if (gameUI.currentState == STATE_SETTINGS) {
-        jstring setHeader = env->NewStringUTF("SETTINGS MENU");
+        jstring setHeader = env->NewStringUTF("SETTINGS");
         if (gameUI.midDrawText && gameUI.paintTextReference) {
-            env->CallVoidMethod(canvas, gameUI.midDrawText, setHeader, (jfloat)(gameUI.screenWidth * 0.3f), (jfloat)(gameUI.screenHeight * 0.3f), gameUI.paintTextReference);
+            env->CallVoidMethod(canvas, gameUI.midDrawText, setHeader, (jfloat)(gameUI.screenWidth * 0.35f), (jfloat)(gameUI.screenHeight * 0.3f), gameUI.paintTextReference);
         }
         env->DeleteLocalRef(setHeader);
 
-        // Close/Back Button
+        // Simple Close / Back button
         float closeW = gameUI.screenWidth * 0.15f;
         float closeX = (gameUI.screenWidth / 2.0f) - (closeW / 2.0f);
         float closeY = gameUI.screenHeight * 0.6f;
         if (gameUI.assetBitmaps[ASSET_CLOSE]) {
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_CLOSE], closeX, closeY, closeW);
-            gameUI.UIButtons.push_back({closeX, closeY, closeW, closeW, 1004}); // Action: Return to Home
+            gameUI.UIButtons.push_back({closeX, closeY, closeW, closeW, 2002, 0}); // Back to Home
         }
         return;
     }
 
-    // --- SCREEN STATE 4: ACTIVE PLAYING GAMEPLAY STATE ---
+    // --- STATE 4: ACTIVE GAMEPLAY ---
     if (gameUI.currentState == STATE_GAMEPLAY) {
-        jstring playingText = env->NewStringUTF("GAMEPLAY CONTENT SCREEN");
+        std::string gameInfo = "PLAYING LEVEL " + std::to_string(gameUI.currentPlayingLevel);
+        jstring jGameInfo = env->NewStringUTF(gameInfo.c_str());
         if (gameUI.midDrawText && gameUI.paintTextReference) {
-            env->CallVoidMethod(canvas, gameUI.midDrawText, playingText, (jfloat)(gameUI.screenWidth * 0.12f), (jfloat)(gameUI.screenHeight * 0.4f), gameUI.paintTextReference);
+            env->CallVoidMethod(canvas, gameUI.midDrawText, jGameInfo, (jfloat)(gameUI.screenWidth * 0.25f), (jfloat)(gameUI.screenHeight * 0.4f), gameUI.paintTextReference);
         }
-        env->DeleteLocalRef(playingText);
+        env->DeleteLocalRef(jGameInfo);
 
-        // Simple back element option to test navigation layout structure
-        float backSize = gameUI.screenWidth * 0.12f;
-        if (gameUI.assetBitmaps[ASSET_CLOSE]) {
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_CLOSE], 40.0f, 50.0f, backSize);
-            gameUI.UIButtons.push_back({40.0f, 50.0f, backSize, backSize, 1004});
+        // Win Level Trigger button (simulation helper to easily test level progression)
+        jstring clearTxt = env->NewStringUTF("[ Tap Here to Clear Level ]");
+        env->CallVoidMethod(canvas, gameUI.midDrawText, clearTxt, (jfloat)(gameUI.screenWidth * 0.15f), (jfloat)(gameUI.screenHeight * 0.6f), gameUI.paintTextReference);
+        env->DeleteLocalRef(clearTxt);
+        gameUI.UIButtons.push_back({(float)(gameUI.screenWidth * 0.15f), (float)(gameUI.screenHeight * 0.55f), (float)(gameUI.screenWidth * 0.7f), 80.0f, 4001, 0});
+
+        // Pause Button on the Right side of the screen
+        float pauseBtnSize = gameUI.screenWidth * 0.12f;
+        float pauseX = gameUI.screenWidth - pauseBtnSize - 40.0f;
+        float pauseY = 50.0f;
+        if (gameUI.assetBitmaps[ASSET_PAUSED]) {
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PAUSED], pauseX, pauseY, pauseBtnSize);
+            gameUI.UIButtons.push_back({pauseX, pauseY, pauseBtnSize, pauseBtnSize, 4002, 0}); // Action: Show Pause Overlay
         }
+        return;
+    }
+
+    // --- STATE 5: PAUSED MENU OVERLAY ---
+    if (gameUI.currentState == STATE_PAUSED) {
+        // Draw Pause Header Text
+        jstring pauseTitle = env->NewStringUTF("GAME PAUSED");
+        env->CallVoidMethod(canvas, gameUI.midDrawText, pauseTitle, (jfloat)(gameUI.screenWidth * 0.32f), (jfloat)(gameUI.screenHeight * 0.25f), gameUI.paintTextReference);
+        env->DeleteLocalRef(pauseTitle);
+
+        float itemH = 100.0f;
+        float startY = gameUI.screenHeight * 0.38f;
+        float itemW = gameUI.screenWidth * 0.6f;
+        float itemX = (gameUI.screenWidth - itemW) / 2.0f;
+
+        // 1. Resume / Play Button option
+        jstring playTxt = env->NewStringUTF("1. RESUME GAME");
+        env->CallVoidMethod(canvas, gameUI.midDrawText, playTxt, itemX, startY, gameUI.paintTextReference);
+        env->DeleteLocalRef(playTxt);
+        gameUI.UIButtons.push_back({itemX, startY - 60.0f, itemW, itemH, 5001, 0});
+
+        // 2. Retry Button option
+        jstring retryTxt = env->NewStringUTF("2. RETRY LEVEL");
+        env->CallVoidMethod(canvas, gameUI.midDrawText, retryTxt, itemX, startY + 120.0f, gameUI.paintTextReference);
+        env->DeleteLocalRef(retryTxt);
+        gameUI.UIButtons.push_back({itemX, startY + 60.0f, itemW, itemH, 5002, 0});
+
+        // 3. Dynamic Audio On / Audio Off Toggle Option
+        std::string audioStr = gameUI.audioEnabled ? "3. AUDIO ON" : "3. AUDIO OFF";
+        jstring jAudio = env->NewStringUTF(audioStr.c_str());
+        env->CallVoidMethod(canvas, gameUI.midDrawText, jAudio, itemX, startY + 240.0f, gameUI.paintTextReference);
+        env->DeleteLocalRef(jAudio);
+        gameUI.UIButtons.push_back({itemX, startY + 180.0f, itemW, itemH, 5003, 0});
+
+        // 4. Back to Home Option (Extra helpful option)
+        jstring homeExit = env->NewStringUTF("4. QUIT TO MENU");
+        env->CallVoidMethod(canvas, gameUI.midDrawText, homeExit, itemX, startY + 360.0f, gameUI.paintTextReference);
+        env->DeleteLocalRef(homeExit);
+        gameUI.UIButtons.push_back({itemX, startY + 300.0f, itemW, itemH, 2002, 0});
     }
 }
 
@@ -238,17 +338,56 @@ JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject obj, jfloat x, jfloat y) {
     if (!gameUI.engineInitialized) return;
 
-    // Detect structural intercept hit boundaries cleanly
     for (const auto& btn : gameUI.UIButtons) {
         if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
-            if (btn.actionCode == 1001) {
-                gameUI.currentState = STATE_GAMEPLAY; // Jump directly to gameplay view structure
-            } else if (btn.actionCode == 1002) {
-                gameUI.currentState = STATE_SETTINGS; // Open clean placeholder settings layer
-            } else if (btn.actionCode == 1003) {
-                gameUI.currentState = STATE_HOME;     // Reset view safely back to Home layout state
-            } else if (btn.actionCode == 1004) {
-                gameUI.currentState = STATE_HOME;     // Back to Home
+            
+            // --- Handlers for 10-Levels Matrix touch interactions ---
+            if (btn.actionCode >= 3000 && btn.actionCode <= 3009) {
+                int selectedLevelIndex = btn.levelValue;
+                bool isUnlocked = gameUI.levelsUnlocked[selectedLevelIndex];
+                int nextUnlockable = getNextUnlockableLevel();
+
+                if (isUnlocked) {
+                    gameUI.currentPlayingLevel = selectedLevelIndex + 1;
+                    gameUI.currentState = STATE_GAMEPLAY;
+                } else if (selectedLevelIndex == nextUnlockable) {
+                    // This is the immediate next level, let them watch an Ad to unlock it
+                    gameUI.levelsUnlocked[selectedLevelIndex] = true; 
+                    gameUI.currentPlayingLevel = selectedLevelIndex + 1;
+                    gameUI.currentState = STATE_GAMEPLAY;
+                }
+                break;
+            }
+
+            switch (btn.actionCode) {
+                case 2001: // Centered Play Button
+                    gameUI.currentState = STATE_GAMEPLAY;
+                    break;
+                case 2002: // Home Button
+                    gameUI.currentState = STATE_HOME;
+                    break;
+                case 2003: // Settings Button
+                    gameUI.currentState = STATE_SETTINGS;
+                    break;
+                case 4001: // Simulation: Win/Clear Current Level
+                    if (gameUI.currentPlayingLevel < 10) {
+                        gameUI.levelsUnlocked[gameUI.currentPlayingLevel] = true; // Unlock the next one
+                        gameUI.currentPlayingLevel++;
+                    }
+                    gameUI.currentState = STATE_HOME;
+                    break;
+                case 4002: // Pause Action Button (triggers overlay state)
+                    gameUI.currentState = STATE_PAUSED;
+                    break;
+                case 5001: // Pause Option 1: Resume
+                    gameUI.currentState = STATE_GAMEPLAY;
+                    break;
+                case 5002: // Pause Option 2: Retry
+                    gameUI.currentState = STATE_GAMEPLAY; // Reloads current level UI clean
+                    break;
+                case 5003: // Pause Option 3: Sound Toggle
+                    gameUI.audioEnabled = !gameUI.audioEnabled;
+                    break;
             }
             break;
         }
