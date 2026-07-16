@@ -1,11 +1,21 @@
 cmake_minimum_required(VERSION 3.10.2)
-project("ArrowPuzzle")
 
-set(CMAKE_CXX_STANDARD 17)
+project("backgroundchange")
 
-add_library(native-lib SHARED native-lib.cpp)
+add_library(
+        native-lib
+        SHARED
+        native-lib.cpp
+        ui_manager.cpp
+        levels.cpp
+)
 
-find_library(log-lib log)
-find_library(jnigraphics-lib jnigraphics)
+find_library(
+        log-lib
+        log
+)
 
-target_link_libraries(native-lib ${log-lib} ${jnigraphics-lib})
+target_link_libraries(
+        native-lib
+        ${log-lib}
+)
