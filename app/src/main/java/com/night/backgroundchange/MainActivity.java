@@ -111,7 +111,7 @@ public class MainActivity extends AppCompatActivity {
                     == Configuration.UI_MODE_NIGHT_YES;
             initNativeEngine(isSystemDark);
 
-            int[] drawables = {
+                        int[] drawables = {
                 R.drawable.arrow, R.drawable.tile, R.drawable.glow, R.drawable.back,
                 R.drawable.home, R.drawable.retry, R.drawable.next, R.drawable.play,
                 R.drawable.paused, R.drawable.settings, R.drawable.sound_on,
@@ -119,7 +119,7 @@ public class MainActivity extends AppCompatActivity {
                 R.drawable.hint, R.drawable.close, R.drawable.lock, R.drawable.share,
                 R.drawable.level, R.drawable.watchads, R.drawable.removads
             };
-
+            
             for (int i = 0; i < drawables.length; i++) {
                 try {
                     Bitmap bmp = BitmapFactory.decodeResource(getResources(), drawables[i]);
