@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <string>
 #include <vector>
+#include <cmath>
 #include <android/log.h>
 
 #define LOG_TAG "GameEngine"
@@ -13,7 +14,8 @@ enum AssetIndex {
     ASSET_ARROW = 0, ASSET_TILE, ASSET_GLOW, ASSET_BACK, ASSET_HOME,
     ASSET_RETRY, ASSET_NEXT, ASSET_PLAY, ASSET_PAUSED, ASSET_SETTINGS,
     ASSET_SOUND_ON, ASSET_SOUND_OFF, ASSET_TICK, ASSET_STAR, ASSET_HINT,
-    ASSET_CLOSE, ASSET_LOCK, ASSET_SHARE, ASSET_LEVEL, ASSET_WATCH_ADS, ASSET_COUNT
+    ASSET_CLOSE, ASSET_LOCK, ASSET_SHARE, ASSET_LEVEL, ASSET_WATCH_ADS, 
+    ASSET_REMOVE_ADS, ASSET_COUNT
 };
 
 struct ClickableButton {
@@ -32,26 +34,29 @@ public:
     bool engineInitialized = false;
     bool audioEnabled = true;
 
-    // Theme Management
+    // Theme Config
     ThemeMode activeTheme = THEME_NORMAL;
     bool isCurrentlyDark = false;
 
-    // 50 Levels Management array
-    bool levelsUnlocked[50] = { true, false }; // Level 1 is unlocked initially
+    // 50 Levels Track
+    bool levelsUnlocked[50] = { true, false };
 
-    // Active Popups Configuration Management
+    // Scroll Configuration for Level View
+    float levelScrollOffset = 0.0f;
+    float maxScrollExtent = 0.0f;
+
+    // Popup Modal States
     bool isHintPopupActive = false;
     bool isThemePopupActive = false;
     bool isRatingPopupActive = false;
     bool isPausePopupActive = false;
 
-    // Rating Dialog State Trackers
     int selectedRatingStars = 0;
 
-    // JNI Resource Handles
     jobject assetBitmaps[ASSET_COUNT] = { nullptr };
     std::vector<ClickableButton> UIButtons;
 
+    // Dynamic Reflection Class Pointers
     jclass canvasClass = nullptr;
     jclass paintClass = nullptr;
     jclass bitmapClass = nullptr;
@@ -64,6 +69,7 @@ public:
     jmethodID midDrawText = nullptr;
     jmethodID midDrawRoundRect = nullptr;
     jmethodID midDrawLine = nullptr;
+    jmethodID midDrawCircle = nullptr;
     jmethodID midGetWidth = nullptr;
     jmethodID midGetHeight = nullptr;
 
@@ -75,7 +81,7 @@ public:
 
 static GameMenuStructure gameUI;
 
-// Structural bitmap drawing utility using the graphics layer
+// Utility Rendering Core Wrap
 void renderBmp(JNIEnv* env, jobject canvas, jobject bitmap, float leftX, float topY, float forcedWidth, jobject customPaint = nullptr) {
     if (!canvas || !bitmap || !gameUI.midSave) return;
 
@@ -92,14 +98,12 @@ void renderBmp(JNIEnv* env, jobject canvas, jobject bitmap, float leftX, float t
     env->CallVoidMethod(canvas, gameUI.midRestore);
 }
 
-// Renders soft shadows underneath actionable canvas containers
 void drawRealShadowRoundRect(JNIEnv* env, jobject canvas, float left, float top, float right, float bottom, float rx, float ry) {
     if (!canvas || !gameUI.midDrawRoundRect || !gameUI.paintShapeReference) return;
     jclass paintCls = env->GetObjectClass(gameUI.paintShapeReference);
     jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
 
-    // Shadow Mask Pass Layer (Shifted down slightly with soft opacity)
-    env->CallVoidMethod(gameUI.paintShapeReference, setColor, gameUI.isCurrentlyDark ? 0x44000000 : 0x22000000);
+    env->CallVoidMethod(gameUI.paintShapeReference, setColor, gameUI.isCurrentlyDark ? 0x55000000 : 0x22000000);
     env->CallVoidMethod(canvas, gameUI.midDrawRoundRect, left + 4.0f, top + 8.0f, right + 4.0f, bottom + 8.0f, rx, ry, gameUI.paintShapeReference);
 }
 
@@ -118,7 +122,6 @@ int getNextUnlockableLevel() {
     return -1;
 }
 
-// Utility configuration setting bold status natively
 void setPaintFontWeight(JNIEnv* env, jobject paintRef, bool isBold) {
     if (!paintRef) return;
     jclass paintCls = env->GetObjectClass(paintRef);
@@ -159,6 +162,7 @@ Java_com_night_backgroundchange_MainActivity_initNativeEngine(JNIEnv* env, jobje
         gameUI.midDrawText = env->GetMethodID(gameUI.canvasClass, "drawText", "(Ljava/lang/String;FFLandroid/graphics/Paint;)V");
         gameUI.midDrawRoundRect = env->GetMethodID(gameUI.canvasClass, "drawRoundRect", "(FFFFFFLandroid/graphics/Paint;)V");
         gameUI.midDrawLine = env->GetMethodID(gameUI.canvasClass, "drawLine", "(FFFFLandroid/graphics/Paint;)V");
+        gameUI.midDrawCircle = env->GetMethodID(gameUI.canvasClass, "drawCircle", "(FFFLandroid/graphics/Paint;)V");
     }
 
     if (gameUI.bitmapClass) {
@@ -198,12 +202,19 @@ Java_com_night_backgroundchange_MainActivity_nativeOnResize(JNIEnv* env, jobject
     gameUI.screenHeight = h;
 }
 
+JNIEXPORT void JNICALL
+Java_com_night_backgroundchange_MainActivity_nativeApplyScroll(JNIEnv* env, jobject obj, jfloat deltaY) {
+    if (gameUI.currentState == STATE_LEVELS) {
+        gameUI.levelScrollOffset += deltaY;
+        if (gameUI.levelScrollOffset > 0.0f) gameUI.levelScrollOffset = 0.0f;
+        if (gameUI.levelScrollOffset < -gameUI.maxScrollExtent) gameUI.levelScrollOffset = -gameUI.maxScrollExtent;
+    }
+}
+
 jobject getTintPaint(JNIEnv* env, jobject obj, int colorHex) {
     jclass actCls = env->GetObjectClass(obj);
     jmethodID getTintMid = env->GetMethodID(actCls, "getTintedPaint", "(I)Landroid/graphics/Paint;");
-    if (getTintMid) {
-        return env->CallObjectMethod(obj, getTintMid, colorHex);
-    }
+    if (getTintMid) return env->CallObjectMethod(obj, getTintMid, colorHex);
     return nullptr;
 }
 
@@ -211,13 +222,10 @@ JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject obj, jobject canvas) {
     if (!canvas || !gameUI.engineInitialized || !gameUI.midDrawColor) return;
 
-    // Invert Design Core Tints
     int baseBgColor = gameUI.isCurrentlyDark ? 0xFF121212 : 0xFFFFFFFF;
     int baseTxtColor = gameUI.isCurrentlyDark ? 0xFFFFFFFF : 0xFF000000;
-    
-    // Configured Active Selection/Unselected States for theme modifications
     int activeSelectionColor = gameUI.isCurrentlyDark ? 0xFFFFFFFF : 0xFF000000;
-    int unselectedGrayColor = 0xFF7A7A7A; 
+    int unselectedGrayColor = 0xFF7A7A7A;
 
     env->CallVoidMethod(canvas, gameUI.midDrawColor, baseBgColor);
     gameUI.UIButtons.clear();
@@ -234,38 +242,28 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     jobject tintActive = getTintPaint(env, obj, activeSelectionColor);
     jobject tintGray = getTintPaint(env, obj, unselectedGrayColor);
     jobject tintYellow = getTintPaint(env, obj, 0xFFFFCC00);
+    jobject tintRed = getTintPaint(env, obj, 0xFFFF3B30);
 
-    // --- SCREEN STATE 1: LOADING IMMERSION ---
-    if (gameUI.currentState == STATE_LOADING) {
-        gameUI.loadingProgress += 0.02f;
-        if (gameUI.loadingProgress >= 1.0f) gameUI.currentState = STATE_HOME;
-
-        jstring loadStr = env->NewStringUTF("LOADING LAYOUT...");
-        env->CallVoidMethod(canvas, gameUI.midDrawText, loadStr, (jfloat)(gameUI.screenWidth * 0.25f), (jfloat)(gameUI.screenHeight * 0.5f), gameUI.paintTextReference);
-        env->DeleteLocalRef(loadStr);
-        return;
-    }
-
-    // --- RENDER DYNAMIC NAV FOOTER BAR ---
+    // Dynamic Navigation Dimensions
     float footerHeight = gameUI.screenHeight * 0.13f;
     float footerY = gameUI.screenHeight - footerHeight;
 
+    // --- SHARED NAVIGATION FOOTER ---
     if (gameUI.currentState == STATE_HOME || gameUI.currentState == STATE_SETTINGS || gameUI.currentState == STATE_LEVELS) {
         drawRoundRectNative(env, canvas, 0, footerY, gameUI.screenWidth, gameUI.screenHeight, 0, 0, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFF8F9FA);
 
-        // Increased size matrix mapping (+15% larger button allocations)
-        float navIconSize = gameUI.screenWidth * 0.095f; 
-        float paddingEdge = 60.0f; // Exact crisp alignment offset distance from left and right margins
+        float navIconSize = gameUI.screenWidth * 0.11f; // Scaled up +15% bigger
+        float paddingEdge = 65.0f; // Shifted safely away from borders
         float innerSpaceY = footerY + (footerHeight / 2.0f) - (navIconSize / 2.0f);
 
-        // Positioning Left Border: Home
+        // Home Navigation Button
         jobject homePaint = (gameUI.currentState == STATE_HOME) ? tintActive : tintGray;
         if (gameUI.assetBitmaps[ASSET_HOME]) {
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HOME], paddingEdge, innerSpaceY, navIconSize, homePaint);
             gameUI.UIButtons.push_back({paddingEdge, innerSpaceY, navIconSize, navIconSize, 9001, 0});
         }
 
-        // Positioning Centered: Levels
+        // Levels Navigation Button
         jobject lvlPaint = (gameUI.currentState == STATE_LEVELS) ? tintActive : tintGray;
         float centerLvlX = (gameUI.screenWidth / 2.0f) - (navIconSize / 2.0f);
         if (gameUI.assetBitmaps[ASSET_LEVEL]) {
@@ -273,7 +271,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({centerLvlX, innerSpaceY, navIconSize, navIconSize, 9002, 0});
         }
 
-        // Positioning Right Border: Settings
+        // Settings Navigation Button
         jobject setPaint = (gameUI.currentState == STATE_SETTINGS) ? tintActive : tintGray;
         float rightSetX = gameUI.screenWidth - navIconSize - paddingEdge;
         if (gameUI.assetBitmaps[ASSET_SETTINGS]) {
@@ -282,20 +280,47 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         }
     }
 
-    // --- STATE 2: HOME SCREEN VIEW ---
+    // --- STATE: LOADING ---
+    if (gameUI.currentState == STATE_LOADING) {
+        gameUI.loadingProgress += 0.02f;
+        if (gameUI.loadingProgress >= 1.0f) gameUI.currentState = STATE_HOME;
+        return;
+    }
+
+    // --- STATE: HOME SCREEN ---
     if (gameUI.currentState == STATE_HOME) {
-        // "RUN ARROW" Title placed right at the top header area
+        // App Title Positioning Layout (Removed standard "A" typography matching parameters)
+        float textStartX = gameUI.screenWidth * 0.18f;
+        float textStartY = 160.0f;
+
         setPaintFontWeight(env, gameUI.paintTextReference, true);
         if (gameUI.paintTextReference) {
             jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
             jmethodID setTextSize = env->GetMethodID(paintCls, "setTextSize", "(F)V");
-            env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 95.0f); // Render larger scale
+            env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 90.0f);
         }
-        jstring titleStr = env->NewStringUTF("RUN ARROW");
-        env->CallVoidMethod(canvas, gameUI.midDrawText, titleStr, (jfloat)(gameUI.screenWidth * 0.23f), 150.0f, gameUI.paintTextReference);
-        env->DeleteLocalRef(titleStr);
 
-        // Restore standard specs
+        jstring titlePart1 = env->NewStringUTF("RUN   RROW");
+        env->CallVoidMethod(canvas, gameUI.midDrawText, titlePart1, textStartX, textStartY, gameUI.paintTextReference);
+        env->DeleteLocalRef(titlePart1);
+
+        // Render Red Upwards Directional Arrow Asset in place of removed character
+        float customArrowSize = 95.0f; 
+        float customArrowX = textStartX + 225.0f;
+        float customArrowY = textStartY - 82.0f;
+        if (gameUI.assetBitmaps[ASSET_ARROW]) {
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], customArrowX, customArrowY, customArrowSize, tintRed);
+        }
+
+        // Render Optional removeads.png Asset inline next to Header Title
+        float removeAdsX = gameUI.screenWidth - 130.0f;
+        float removeAdsY = textStartY - 75.0f;
+        if (gameUI.assetBitmaps[ASSET_REMOVE_ADS]) {
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_REMOVE_ADS], removeAdsX, removeAdsY, 90.0f, tintActive);
+            gameUI.UIButtons.push_back({removeAdsX, removeAdsY, 90.0f, 90.0f, 2010, 0});
+        }
+
+        // Restoring typography settings defaults
         setPaintFontWeight(env, gameUI.paintTextReference, false);
         if (gameUI.paintTextReference) {
             jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
@@ -303,400 +328,478 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 45.0f);
         }
 
-        // Large Play Button Center Screen
-        float playW = gameUI.screenWidth * 0.35f;
+        // Square Brand Logo Watermark Box Structure Layout (Centered Light Gray Symbol Matrix)
+        float wmSize = gameUI.screenWidth * 0.36f;
+        float wmX = (gameUI.screenWidth - wmSize) / 2.0f;
+        float wmY = gameUI.screenHeight * 0.28f;
+        
+        // Solid square layout watermark base plate
+        drawRoundRectNative(env, canvas, wmX, wmY, wmX + wmSize, wmY + wmSize, 28, 28, gameUI.isCurrentlyDark ? 0xFF1C1C1E : 0xFFF2F2F7);
+
+        // Arrow Component 1: Center Downward Directional
+        float iconItemSize = wmSize * 0.38f;
+        jobject wmTint = getTintPaint(env, obj, gameUI.isCurrentlyDark ? 0xFF2C2C2E : 0xFFD1D1D6);
+        
+        env->CallIntMethod(canvas, gameUI.midSave);
+        env->CallVoidMethod(canvas, gameUI.midTranslate, wmX + (wmSize / 2.0f), wmY + (wmSize / 3.0f));
+        env->CallVoidMethod(canvas, gameUI.midScale, 1.0f, -1.0f, 0.0f, 0.0f); // Flips to point down
+        if (gameUI.assetBitmaps[ASSET_ARROW]) {
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], -iconItemSize / 2.0f, -iconItemSize / 2.0f, iconItemSize, wmTint);
+        }
+        env->CallVoidMethod(canvas, gameUI.midRestore);
+
+        // Arrow Component 2: Left Directional
+        env->CallIntMethod(canvas, gameUI.midSave);
+        env->CallVoidMethod(canvas, gameUI.midTranslate, wmX + (wmSize / 3.0f), wmY + (wmSize * 0.68f));
+        jclass canvasCls = env->GetObjectClass(canvas);
+        jmethodID midRotate = env->GetMethodID(canvasCls, "rotate", "(FFF)V");
+        if (midRotate) env->CallVoidMethod(canvas, midRotate, -90.0f, 0.0f, 0.0f);
+        if (gameUI.assetBitmaps[ASSET_ARROW]) {
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], -iconItemSize / 2.0f, -iconItemSize / 2.0f, iconItemSize, wmTint);
+        }
+        env->CallVoidMethod(canvas, gameUI.midRestore);
+
+        // Arrow Component 3: Right Directional placed underneath Left component
+        env->CallIntMethod(canvas, gameUI.midSave);
+        env->CallVoidMethod(canvas, gameUI.midTranslate, wmX + (wmSize * 0.68f), wmY + (wmSize * 0.68f));
+        if (midRotate) env->CallVoidMethod(canvas, midRotate, 90.0f, 0.0f, 0.0f);
+        if (gameUI.assetBitmaps[ASSET_ARROW]) {
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], -iconItemSize / 2.0f, -iconItemSize / 2.0f, iconItemSize, wmTint);
+        }
+        env->CallVoidMethod(canvas, gameUI.midRestore);
+
+        // Large Play Button moved down screen with expanded scale configurations
+        float playW = gameUI.screenWidth * 0.45f; // Enlarged layout footprint
         float playX = (gameUI.screenWidth / 2.0f) - (playW / 2.0f);
-        float playY = (gameUI.screenHeight * 0.32f);
+        float playY = gameUI.screenHeight * 0.48f; // Repositioned further down page safely
+        
         if (gameUI.assetBitmaps[ASSET_PLAY]) {
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PLAY], playX, playY, playW, tintActive);
             gameUI.UIButtons.push_back({playX, playY, playW, playW, 2001, 0});
         }
-
-        // Touchable Blue Box Button Container for Played Level Indicator
-        float playBoxW = gameUI.screenWidth * 0.65f;
-        float playBoxH = 110.0f;
-        float playBoxX = (gameUI.screenWidth - playBoxW) / 2.0f;
-        float playBoxY = gameUI.screenHeight * 0.62f;
-
-        // Draw shadow map + blue round box layout frame mapping
-        drawRealShadowRoundRect(env, canvas, playBoxX, playBoxY, playBoxX + playBoxW, playBoxY + playBoxH, 24, 24);
-        drawRoundRectNative(env, canvas, playBoxX, playBoxY, playBoxX + playBoxW, playBoxY + playBoxH, 24, 24, 0xFF007AFF);
-
-        // Render bold text into touchable container
-        setPaintFontWeight(env, gameUI.paintTextReference, true);
-        if (gameUI.paintTextReference) {
-            jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
-            jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
-            env->CallVoidMethod(gameUI.paintTextReference, setColor, 0xFFFFFFFF); // White text inside blue box
-        }
-
-        std::string labelText = "PLAYING LEVEL " + std::to_string(gameUI.currentPlayingLevel);
-        jstring jLbl = env->NewStringUTF(labelText.c_str());
-        env->CallVoidMethod(canvas, gameUI.midDrawText, jLbl, playBoxX + 55.0f, playBoxY + 70.0f, gameUI.paintTextReference);
-        env->DeleteLocalRef(jLbl);
-
-        // Reset system context settings
-        if (gameUI.paintTextReference) {
-            jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
-            jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
-            env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
-        }
-        setPaintFontWeight(env, gameUI.paintTextReference, false);
-
-        // Bind touch code interface tracker mapping
-        gameUI.UIButtons.push_back({playBoxX, playBoxY, playBoxW, playBoxH, 2005, 0});
     }
 
-    // --- STATE 3: LEVEL CONFIGURATION SELECTION matrix (50 Levels) ---
+    // --- STATE: SCROLLABLE LEVEL GRID SELECTION MATRIX (3 Column Max Grid Layout) ---
     if (gameUI.currentState == STATE_LEVELS) {
         setPaintFontWeight(env, gameUI.paintTextReference, true);
         jstring levelHeader = env->NewStringUTF("SELECT LEVEL");
-        env->CallVoidMethod(canvas, gameUI.midDrawText, levelHeader, (jfloat)(gameUI.screenWidth * 0.32f), 90.0f, gameUI.paintTextReference);
+        env->CallVoidMethod(canvas, gameUI.midDrawText, levelHeader, (jfloat)(gameUI.screenWidth * 0.32f), 85.0f, gameUI.paintTextReference);
         env->DeleteLocalRef(levelHeader);
         setPaintFontWeight(env, gameUI.paintTextReference, false);
 
-        // Render Scrollable/Grid Matrix layout matching requested parameters
-        float boxSize = gameUI.screenWidth * 0.15f;
-        float spaceGrid = gameUI.screenWidth * 0.035f;
-        float offsetGridX = (gameUI.screenWidth - (5 * boxSize + 4 * spaceGrid)) / 2.0f;
+        // Matrix Config Layout Metrics
+        float boxSize = gameUI.screenWidth * 0.25f; // Extra-large box layout scale to exactly fit 3 blocks per horizontal sweep
+        float spaceGrid = gameUI.screenWidth * 0.045f;
+        float offsetGridX = (gameUI.screenWidth - (3 * boxSize + 2 * spaceGrid)) / 2.0f;
         float offsetGridY = 140.0f;
 
         int nextAdIndex = getNextUnlockableLevel();
+        
+        // Total rows computation for 50 indexes = 17 rows total
+        int totalRows = (int)std::ceil(50.0f / 3.0f);
+        float totalContentHeight = totalRows * (boxSize + spaceGrid) + 160.0f;
+        gameUI.maxScrollExtent = totalContentHeight - (footerY - offsetGridY);
+        if (gameUI.maxScrollExtent < 0.0f) gameUI.maxScrollExtent = 0.0f;
 
-        // Matrix Grid: 10 rows, 5 columns = 50 items
+        // Apply Local Layer Scissor Mask bounds clipping to grid allocations dynamically
+        env->CallIntMethod(canvas, gameUI.midSave);
+        
         for (int i = 0; i < 50; i++) {
-            int row = i / 5;
-            int col = i % 5;
+            int row = i / 3;
+            int col = i % 3;
             float bx = offsetGridX + col * (boxSize + spaceGrid);
-            float by = offsetGridY + row * (boxSize + spaceGrid);
+            float by = offsetGridY + row * (boxSize + spaceGrid) + gameUI.levelScrollOffset;
 
-            // Optimization layout checklist boundaries
-            if (by + boxSize > footerY) continue; 
+            // Performance Layer Skip Culling bounds check
+            if (by + boxSize < offsetGridY || by > footerY) continue;
 
-            bool isUnlocked = gameUI.levelsUnlocked[i];
-            bool isAd = (i == nextAdIndex);
+            drawRealShadowRoundRect(env, canvas, bx, by, bx + boxSize, by + boxSize, 24, 24);
+            int finalBoxColor = gameUI.levelsUnlocked[i] ? 0xFF007AFF : 0xFFD3D3D3;
+            drawRoundRectNative(env, canvas, bx, by, bx + boxSize, by + boxSize, 24, 24, finalBoxColor);
 
-            // Draw shadow base map to look like real standalone buttons
-            drawRealShadowRoundRect(env, canvas, bx, by, bx + boxSize, by + boxSize, 20, 20);
-
-            int finalBoxColor = isUnlocked ? 0xFF007AFF : 0xFFD3D3D3; // Blue if unlocked, Light Gray if locked
-            drawRoundRectNative(env, canvas, bx, by, bx + boxSize, by + boxSize, 20, 20, finalBoxColor);
-
-            if (!isUnlocked) {
+            if (!gameUI.levelsUnlocked[i]) {
                 if (gameUI.assetBitmaps[ASSET_LOCK]) {
-                    renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LOCK], bx + (boxSize * 0.25f), by + (boxSize * 0.25f), boxSize * 0.5f, tintActive);
+                    renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LOCK], bx + (boxSize * 0.28f), by + (boxSize * 0.28f), boxSize * 0.44f, tintActive);
                 }
-                if (isAd && gameUI.assetBitmaps[ASSET_WATCH_ADS]) {
-                    renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_WATCH_ADS], bx + (boxSize * 0.62f), by + 6.0f, boxSize * 0.32f);
+                if (i == nextAdIndex && gameUI.assetBitmaps[ASSET_WATCH_ADS]) {
+                    renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_WATCH_ADS], bx + (boxSize * 0.65f), by + 8.0f, boxSize * 0.28f);
                 }
             } else {
-                setPaintFontWeight(env, gameUI.paintTextReference, true); // Bold text identifiers
+                setPaintFontWeight(env, gameUI.paintTextReference, true);
                 std::string numLvl = std::to_string(i + 1);
                 jstring jNumL = env->NewStringUTF(numLvl.c_str());
-                env->CallVoidMethod(canvas, gameUI.midDrawText, jNumL, bx + (boxSize * 0.32f), by + (boxSize * 0.62f), gameUI.paintTextReference);
+                env->CallVoidMethod(canvas, gameUI.midDrawText, jNumL, bx + (boxSize * 0.36f), by + (boxSize * 0.60f), gameUI.paintTextReference);
                 env->DeleteLocalRef(jNumL);
                 setPaintFontWeight(env, gameUI.paintTextReference, false);
             }
 
+            // Scroll position offset adjusted interaction bindings mapping
             gameUI.UIButtons.push_back({bx, by, boxSize, boxSize, 3000 + i, i});
         }
 
-        // Bottom Grid Trigger to Complete all levels layout structure safely
-        float completeBtnY = offsetGridY + 10 * (boxSize + spaceGrid) + 20.0f;
-        if (completeBtnY + 80.0f < footerY) {
-            float cW = gameUI.screenWidth * 0.7f;
+        // Bottom Grid Complete All Button placement tracking matrix bounds
+        float completeBtnY = offsetGridY + totalRows * (boxSize + spaceGrid) + gameUI.levelScrollOffset + 20.0f;
+        if (completeBtnY + 85.0f > offsetGridY && completeBtnY < footerY) {
+            float cW = gameUI.screenWidth * 0.75f;
             float cX = (gameUI.screenWidth - cW) / 2.0f;
-            drawRealShadowRoundRect(env, canvas, cX, completeBtnY, cX + cW, completeBtnY + 80.0f, 16, 16);
-            drawRoundRectNative(env, canvas, cX, completeBtnY, cX + cW, completeBtnY + 80.0f, 16, 16, 0xFF34C759); // Green box
+            drawRealShadowRoundRect(env, canvas, cX, completeBtnY, cX + cW, completeBtnY + 85.0f, 20, 20);
+            drawRoundRectNative(env, canvas, cX, completeBtnY, cX + cW, completeBtnY + 85.0f, 20, 20, 0xFF34C759);
 
             jstring completeTxt = env->NewStringUTF("COMPLETE ALL LEVELS");
-            env->CallVoidMethod(canvas, gameUI.midDrawText, completeTxt, cX + 60.0f, completeBtnY + 55.0f, gameUI.paintTextReference);
+            env->CallVoidMethod(canvas, gameUI.midDrawText, completeTxt, cX + 75.0f, completeBtnY + 58.0f, gameUI.paintTextReference);
             env->DeleteLocalRef(completeTxt);
 
-            gameUI.UIButtons.push_back({cX, completeBtnY, cW, 80.0f, 3500, 0});
+            gameUI.UIButtons.push_back({cX, completeBtnY, cW, 85.0f, 3500, 0});
         }
+
+        env->CallVoidMethod(canvas, gameUI.midRestore);
     }
 
-    // --- STATE 4: SETTINGS PANEL DESIGN LAYOUT ---
+    // --- STATE: GAMEPLAY ACTION LAYER GRID SCENARIO ---
+    if (gameUI.currentState == STATE_GAMEPLAY) {
+        float headerIconSize = gameUI.screenWidth * 0.11f;
+        float baseIconY = 55.0f;
+
+        if (gameUI.assetBitmaps[ASSET_PAUSED]) {
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PAUSED], 40.0f, baseIconY, headerIconSize, tintGray);
+            gameUI.UIButtons.push_back({40.0f, baseIconY, headerIconSize, headerIconSize, 4002, 0});
+        }
+        if (gameUI.assetBitmaps[ASSET_HINT]) {
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HINT], gameUI.screenWidth - headerIconSize - 40.0f, baseIconY, headerIconSize, tintYellow);
+            gameUI.UIButtons.push_back({gameUI.screenWidth - headerIconSize - 40.0f, baseIconY, headerIconSize, headerIconSize, 4003, 0});
+        }
+
+        // Procedural Interactive gameplay Dot Matrix (50 dots array block)
+        float dotPlayAreaTop = 200.0f;
+        float dotPlayAreaBottom = footerY - 40.0f;
+        float dotFieldH = dotPlayAreaBottom - dotPlayAreaTop;
+        
+        // Setup Grid allocation parameters: 5 rows of 10 points = 50 structural dots
+        int dotRows = 5;
+        int dotCols = 10;
+        float spacingRow = dotFieldH / (dotRows + 1);
+        float spacingCol = gameUI.screenWidth / (dotCols + 1);
+
+        if (gameUI.paintShapeReference) {
+            jclass paintCls = env->GetObjectClass(gameUI.paintShapeReference);
+            jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
+            env->CallVoidMethod(gameUI.paintShapeReference, setColor, gameUI.isCurrentlyDark ? 0xFF444446 : 0xFFD1D1D6);
+
+            for (int r = 0; r < dotRows; r++) {
+                for (int c = 0; c < dotCols; c++) {
+                    float dotX = spacingCol * (c + 1);
+                    float dotY = dotPlayAreaTop + spacingRow * (r + 1);
+                    env->CallVoidMethod(canvas, gameUI.midDrawCircle, dotX, dotY, 9.0f, gameUI.paintShapeReference);
+                }
+            }
+        }
+
+        jstring simH = env->NewStringUTF("[ Tap To Clear Level ]");
+        env->CallVoidMethod(canvas, gameUI.midDrawText, simH, gameUI.screenWidth * 0.28f, gameUI.screenHeight * 0.85f, gameUI.paintTextReference);
+        env->DeleteLocalRef(simH);
+        gameUI.UIButtons.push_back({gameUI.screenWidth * 0.25f, gameUI.screenHeight * 0.80f, gameUI.screenWidth * 0.5f, 80.0f, 4001, 0});
+    }
+
+    // --- STATE: SETTINGS PANEL SECTION ---
     if (gameUI.currentState == STATE_SETTINGS) {
-        float rowItemY = gameUI.screenHeight * 0.15f;
-        float rowItemH = 135.0f;
-        float rowItemW = gameUI.screenWidth * 0.9f;
-        float rowItemX = (gameUI.screenWidth - rowItemW) / 2.0f;
+        float itemRowY = gameUI.screenHeight * 0.12f;
+        float itemRowH = 160.0f; // Expanded structural height to fit secondary info string components smoothly
+        float itemRowW = gameUI.screenWidth * 0.92f;
+        float itemRowX = (gameUI.screenWidth - itemRowW) / 2.0f;
 
         jclass paintCls = env->GetObjectClass(gameUI.paintShapeReference);
         jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
 
-        // List Row Item 1: Theme Manager Selection Options Trigger Panel
-        jstring tTxt = env->NewStringUTF("THEME SELECTION");
-        env->CallVoidMethod(canvas, gameUI.midDrawText, tTxt, rowItemX + 10, rowItemY + 80, gameUI.paintTextReference);
-        env->DeleteLocalRef(tTxt);
-        gameUI.UIButtons.push_back({rowItemX, rowItemY, rowItemW, rowItemH, 6501, 0});
+        // Row 1: Theme Manager Option
+        jstring tText = env->NewStringUTF("Theme Selection");
+        env->CallVoidMethod(canvas, gameUI.midDrawText, tText, itemRowX + 15.0f, itemRowY + 65.0f, gameUI.paintTextReference);
+        env->DeleteLocalRef(tText);
+        
+        if (gameUI.paintTextReference) {
+            jclass pTxtCls = env->GetObjectClass(gameUI.paintTextReference);
+            jmethodID setSize = env->GetMethodID(pTxtCls, "setTextSize", "(F)V");
+            jmethodID setCol = env->GetMethodID(pTxtCls, "setColor", "(I)V");
+            env->CallVoidMethod(gameUI.paintTextReference, setSize, 32.0f);
+            env->CallVoidMethod(gameUI.paintTextReference, setCol, unselectedGrayColor);
+            jstring tDesc = env->NewStringUTF("Customize interface look and dark accent control panels");
+            env->CallVoidMethod(canvas, gameUI.midDrawText, tDesc, itemRowX + 15.0f, itemRowY + 115.0f, gameUI.paintTextReference);
+            env->DeleteLocalRef(tDesc);
+            env->CallVoidMethod(gameUI.paintTextReference, setSize, 45.0f);
+            env->CallVoidMethod(gameUI.paintTextReference, setCol, baseTxtColor);
+        }
+        gameUI.UIButtons.push_back({itemRowX, itemRowY, itemRowW, itemRowH, 6501, 0});
 
-        // Line Separator
-        env->CallVoidMethod(gameUI.paintShapeReference, setColor, gameUI.isCurrentlyDark ? 0xFF3A3A3C : 0xFFE5E5EA);
-        env->CallVoidMethod(canvas, gameUI.midDrawLine, rowItemX, rowItemY + rowItemH, rowItemX + rowItemW, rowItemY + rowItemH, gameUI.paintShapeReference);
+        env->CallVoidMethod(gameUI.paintShapeReference, setColor, gameUI.isCurrentlyDark ? 0xFF2C2C2E : 0xFFE5E5EA);
+        env->CallVoidMethod(canvas, gameUI.midDrawLine, itemRowX, itemRowY + itemRowH, itemRowX + itemRowW, itemRowY + itemRowH, gameUI.paintShapeReference);
 
-        // List Row Item 2: Privacy Policy Link Box
-        rowItemY += rowItemH;
-        jstring pTxt = env->NewStringUTF("PRIVACY POLICY");
-        env->CallVoidMethod(canvas, gameUI.midDrawText, pTxt, rowItemX + 10, rowItemY + 80, gameUI.paintTextReference);
-        env->DeleteLocalRef(pTxt);
-        gameUI.UIButtons.push_back({rowItemX, rowItemY, rowItemW, rowItemH, 6502, 0});
+        // Row 2: Privacy Policy Options
+        itemRowY += itemRowH;
+        jstring pText = env->NewStringUTF("Privacy Policy");
+        env->CallVoidMethod(canvas, gameUI.midDrawText, pText, itemRowX + 15.0f, itemRowY + 65.0f, gameUI.paintTextReference);
+        env->DeleteLocalRef(pText);
 
-        // Line Separator
-        env->CallVoidMethod(canvas, gameUI.midDrawLine, rowItemX, rowItemY + rowItemH, rowItemX + rowItemW, rowItemY + rowItemH, gameUI.paintShapeReference);
+        if (gameUI.paintTextReference) {
+            jclass pTxtCls = env->GetObjectClass(gameUI.paintTextReference);
+            jmethodID setSize = env->GetMethodID(pTxtCls, "setTextSize", "(F)V");
+            jmethodID setCol = env->GetMethodID(pTxtCls, "setColor", "(I)V");
+            env->CallVoidMethod(gameUI.paintTextReference, setSize, 32.0f);
+            env->CallVoidMethod(gameUI.paintTextReference, setCol, unselectedGrayColor);
+            jstring pDesc = env->NewStringUTF("Review our online user data privacy protection guidelines");
+            env->CallVoidMethod(canvas, gameUI.midDrawText, pDesc, itemRowX + 15.0f, itemRowY + 115.0f, gameUI.paintTextReference);
+            env->DeleteLocalRef(pDesc);
+            env->CallVoidMethod(gameUI.paintTextReference, setSize, 45.0f);
+            env->CallVoidMethod(gameUI.paintTextReference, setCol, baseTxtColor);
+        }
+        gameUI.UIButtons.push_back({itemRowX, itemRowY, itemRowW, itemRowH, 6502, 0});
 
-        // List Row Item 3: Share Our App
-        rowItemY += rowItemH;
-        jstring sTxt = env->NewStringUTF("SHARE OUR APP");
-        env->CallVoidMethod(canvas, gameUI.midDrawText, sTxt, rowItemX + 10, rowItemY + 80, gameUI.paintTextReference);
-        env->DeleteLocalRef(sTxt);
+        env->CallVoidMethod(canvas, gameUI.midDrawLine, itemRowX, itemRowY + itemRowH, itemRowX + itemRowW, itemRowY + itemRowH, gameUI.paintShapeReference);
+
+        // Row 3: Share Application Option (Equal structural image sizing)
+        itemRowY += itemRowH;
+        jstring sText = env->NewStringUTF("Share Our App");
+        env->CallVoidMethod(canvas, gameUI.midDrawText, sText, itemRowX + 15.0f, itemRowY + 65.0f, gameUI.paintTextReference);
+        env->DeleteLocalRef(sText);
+
+        if (gameUI.paintTextReference) {
+            jclass pTxtCls = env->GetObjectClass(gameUI.paintTextReference);
+            jmethodID setSize = env->GetMethodID(pTxtCls, "setTextSize", "(F)V");
+            jmethodID setCol = env->GetMethodID(pTxtCls, "setColor", "(I)V");
+            env->CallVoidMethod(gameUI.paintTextReference, setSize, 32.0f);
+            env->CallVoidMethod(gameUI.paintTextReference, setCol, unselectedGrayColor);
+            jstring sDesc = env->NewStringUTF("Share game link with family and social networks");
+            env->CallVoidMethod(canvas, gameUI.midDrawText, sDesc, itemRowX + 15.0f, itemRowY + 115.0f, gameUI.paintTextReference);
+            env->DeleteLocalRef(sDesc);
+            env->CallVoidMethod(gameUI.paintTextReference, setSize, 45.0f);
+            env->CallVoidMethod(gameUI.paintTextReference, setCol, baseTxtColor);
+        }
         if (gameUI.assetBitmaps[ASSET_SHARE]) {
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_SHARE], rowItemX + rowItemW - 90, rowItemY + 35, 65.0f, tintActive);
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_SHARE], itemRowX + itemRowW - 95, itemRowY + 45, 70.0f, tintActive);
         }
-        gameUI.UIButtons.push_back({rowItemX, rowItemY, rowItemW, rowItemH, 6503, 0});
+        gameUI.UIButtons.push_back({itemRowX, itemRowY, itemRowW, itemRowH, 6503, 0});
 
-        // Line Separator
-        env->CallVoidMethod(canvas, gameUI.midDrawLine, rowItemX, rowItemY + rowItemH, rowItemX + rowItemW, rowItemY + rowItemH, gameUI.paintShapeReference);
+        env->CallVoidMethod(canvas, gameUI.midDrawLine, itemRowX, itemRowY + itemRowH, itemRowX + itemRowW, itemRowY + itemRowH, gameUI.paintShapeReference);
 
-        // List Row Item 4: Rate Our App
-        rowItemY += rowItemH;
-        jstring rTxt = env->NewStringUTF("RATE OUR APP");
-        env->CallVoidMethod(canvas, gameUI.midDrawText, rTxt, rowItemX + 10, rowItemY + 80, gameUI.paintTextReference);
-        env->DeleteLocalRef(rTxt);
+        // Row 4: Rate Application Option (Expanded star configuration match)
+        itemRowY += itemRowH;
+        jstring rText = env->NewStringUTF("Rate Our App");
+        env->CallVoidMethod(canvas, gameUI.midDrawText, rText, itemRowX + 15.0f, itemRowY + 65.0f, gameUI.paintTextReference);
+        env->DeleteLocalRef(rText);
+
+        if (gameUI.paintTextReference) {
+            jclass pTxtCls = env->GetObjectClass(gameUI.paintTextReference);
+            jmethodID setSize = env->GetMethodID(pTxtCls, "setTextSize", "(F)V");
+            jmethodID setCol = env->GetMethodID(pTxtCls, "setColor", "(I)V");
+            env->CallVoidMethod(gameUI.paintTextReference, setSize, 32.0f);
+            env->CallVoidMethod(gameUI.paintTextReference, setCol, unselectedGrayColor);
+            jstring rDesc = env->NewStringUTF("Submit active 5 star reviews on storefront networks");
+            env->CallVoidMethod(canvas, gameUI.midDrawText, rDesc, itemRowX + 15.0f, itemRowY + 115.0f, gameUI.paintTextReference);
+            env->DeleteLocalRef(rDesc);
+            env->CallVoidMethod(gameUI.paintTextReference, setSize, 45.0f);
+            env->CallVoidMethod(gameUI.paintTextReference, setCol, baseTxtColor);
+        }
         if (gameUI.assetBitmaps[ASSET_STAR]) {
-            // Render Star Icon significantly larger and clearer
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_STAR], rowItemX + rowItemW - 95, rowItemY + 30, 75.0f, tintActive);
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_STAR], itemRowX + itemRowW - 95, itemRowY + 45, 70.0f, tintActive); // Equal Large 70px scale
         }
-        gameUI.UIButtons.push_back({rowItemX, rowItemY, rowItemW, rowItemH, 6504, 0});
-    }
-
-    // --- STATE 5: ACTIVE SCREEN GAMEPLAY ---
-    if (gameUI.currentState == STATE_GAMEPLAY) {
-        float headerIconSize = gameUI.screenWidth * 0.11f;
-        float paddingEdge = 40.0f;
-        float baseIconY = 55.0f;
-
-        // Position Left Border: Pause Option
-        if (gameUI.assetBitmaps[ASSET_PAUSED]) {
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PAUSED], paddingEdge, baseIconY, headerIconSize, tintGray);
-            gameUI.UIButtons.push_back({paddingEdge, baseIconY, headerIconSize, headerIconSize, 4002, 0});
-        }
-
-        // Position Right Border: Hint Option
-        if (gameUI.assetBitmaps[ASSET_HINT]) {
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HINT], gameUI.screenWidth - headerIconSize - paddingEdge, baseIconY, headerIconSize, tintYellow);
-            gameUI.UIButtons.push_back({gameUI.screenWidth - headerIconSize - paddingEdge, baseIconY, headerIconSize, headerIconSize, 4003, 0});
-        }
-
-        std::string infoStr = "LEVEL " + std::to_string(gameUI.currentPlayingLevel);
-        jstring jInfoS = env->NewStringUTF(infoStr.c_str());
-        env->CallVoidMethod(canvas, gameUI.midDrawText, jInfoS, (jfloat)(gameUI.screenWidth * 0.4f), 100.0f, gameUI.paintTextReference);
-        env->DeleteLocalRef(jInfoS);
-
-        // Simulation handle target
-        jstring completeSimTxt = env->NewStringUTF("[ Clear Current Level Link ]");
-        env->CallVoidMethod(canvas, gameUI.midDrawText, completeSimTxt, (jfloat)(gameUI.screenWidth * 0.15f), (jfloat)(gameUI.screenHeight * 0.5f), gameUI.paintTextReference);
-        env->DeleteLocalRef(completeSimTxt);
-        gameUI.UIButtons.push_back({(float)(gameUI.screenWidth * 0.15f), (float)(gameUI.screenHeight * 0.45f), (float)(gameUI.screenWidth * 0.7f), 80.0f, 4001, 0});
+        gameUI.UIButtons.push_back({itemRowX, itemRowY, itemRowW, itemRowH, 6504, 0});
     }
 
     // ========================================================
-    // --- DIALOG MODALS SCENARIOS scrim handling (40% BLUR scrim overlay) ---
+    // --- MODAL POPUPS BLUR DECOR SYSTEM ---
     // ========================================================
-    bool anyPopupVisible = (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive || gameUI.isPausePopupActive);
+    bool activeModalBlocks = (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive || gameUI.isPausePopupActive);
 
-    if (anyPopupVisible) {
-        // Draw 40% opaque blur mask layer
+    if (activeModalBlocks) {
         drawRoundRectNative(env, canvas, 0, 0, gameUI.screenWidth, gameUI.screenHeight, 0, 0, 0x66000000);
 
-        float dW = gameUI.screenWidth * 0.78f;
-        float dH = gameUI.screenHeight * 0.38f;
+        // Universal Uniform Compact Dimensions Base Config
+        float dW = gameUI.screenWidth * 0.76f;
+        float dH = gameUI.screenHeight * 0.32f;
         float dX = (gameUI.screenWidth - dW) / 2.0f;
         float dY = (gameUI.screenHeight - dH) / 2.0f;
 
-        // Custom Compact specifications for layout popup logic handles
-        if (gameUI.isHintPopupActive || gameUI.isRatingPopupActive) {
-            dW = gameUI.screenWidth * 0.72f; 
-            dH = gameUI.screenHeight * 0.32f;
+        if (gameUI.isThemePopupActive || gameUI.isPausePopupActive) {
+            dW = gameUI.screenWidth * 0.82f;
+            dH = gameUI.screenHeight * 0.44f;
             dX = (gameUI.screenWidth - dW) / 2.0f;
             dY = (gameUI.screenHeight - dH) / 2.0f;
         }
 
-        // Box base container layer
-        drawRoundRectNative(env, canvas, dX, dY, dX + dW, dY + dH, 32, 32, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFFFFFFF);
+        drawRoundRectNative(env, canvas, dX, dY, dX + dW, dY + dH, 36, 36, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFFFFFFF);
 
-        // Rendering Large explicit Close option PNG button bound mapping
-        float dialogCloseW = 65.0f; 
-        float dialogCloseX = dX + dW - dialogCloseW - 35.0f;
-        float dialogCloseY = dY + 35.0f;
+        // Uniform Large Professional Close Button Component across dialog surfaces
+        float uniformCloseSize = 75.0f; 
+        float uniformCloseX = dX + dW - uniformCloseSize - 30.0f;
+        float uniformCloseY = dY + 30.0f;
 
         if (gameUI.assetBitmaps[ASSET_CLOSE] && !gameUI.isPausePopupActive) {
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_CLOSE], dialogCloseX, dialogCloseY, dialogCloseW, tintActive);
-            gameUI.UIButtons.push_back({dialogCloseX - 10, dialogCloseY - 10, dialogCloseW + 20, dialogCloseW + 20, 9999, 0});
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_CLOSE], uniformCloseX, uniformCloseY, uniformCloseSize, tintActive);
+            gameUI.UIButtons.push_back({uniformCloseX - 10, uniformCloseY - 10, uniformCloseSize + 20, uniformCloseSize + 20, 9999, 0});
         }
 
-        // --- SCENARIO A: COMPACT ADAPTIVE HINT MODAL ---
+        // --- POPUP CASE 1: PROFESSIONAL HINT DIALOG ---
         if (gameUI.isHintPopupActive) {
             setPaintFontWeight(env, gameUI.paintTextReference, true);
             jstring hMsg = env->NewStringUTF("Need hint?");
-            env->CallVoidMethod(canvas, gameUI.midDrawText, hMsg, dX + (dW * 0.32f), dY + 110.0f, gameUI.paintTextReference);
+            env->CallVoidMethod(canvas, gameUI.midDrawText, hMsg, dX + (dW * 0.30f), dY + 105.0f, gameUI.paintTextReference);
             env->DeleteLocalRef(hMsg);
             setPaintFontWeight(env, gameUI.paintTextReference, false);
 
-            float bW = dW * 0.8f;
-            float bH = 90.0f;
+            float buttonHeight = 105.0f; // Increased button height parameters
+            float bW = dW * 0.85f;
             float bX = dX + (dW - bW) / 2.0f;
-            float bY = dY + dH - bH - 45.0f;
+            float bY = dY + dH - buttonHeight - 40.0f;
 
-            drawRoundRectNative(env, canvas, bX, bY, bX + bW, bY + bH, 16, 16, 0xFF007AFF);
+            drawRoundRectNative(env, canvas, bX, bY, bX + bW, bY + buttonHeight, 20, 20, 0xFF007AFF);
+
+            // Exactly Centered Compound Graphic Placement Layout
+            float innerIconW = 50.0f;
+            float compoundSpacing = 20.0f;
+            
+            // Calculate total width of graphic + string combo
+            float totalCompoundWidth = innerIconW + compoundSpacing + 200.0f; 
+            float targetStartContentX = bX + (bW - totalCompoundWidth) / 2.0f;
 
             if (gameUI.assetBitmaps[ASSET_WATCH_ADS]) {
-                renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_WATCH_ADS], bX + 40.0f, bY + 20.0f, 50.0f);
+                renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_WATCH_ADS], targetStartContentX, bY + (buttonHeight - innerIconW) / 2.0f, innerIconW);
             }
-
             if (gameUI.paintTextReference) {
                 jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
-                jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
-                env->CallVoidMethod(gameUI.paintTextReference, setColor, 0xFFFFFFFF);
+                jmethodID setCol = env->GetMethodID(paintCls, "setColor", "(I)V");
+                env->CallVoidMethod(gameUI.paintTextReference, setCol, 0xFFFFFFFF);
             }
-            jstring btnT = env->NewStringUTF("Watch Ads");
-            env->CallVoidMethod(canvas, gameUI.midDrawText, btnT, bX + 115.0f, bY + 62.0f, gameUI.paintTextReference);
-            env->DeleteLocalRef(btnT);
-
+            jstring adLabel = env->NewStringUTF("Watch Ads");
+            env->CallVoidMethod(canvas, gameUI.midDrawText, adLabel, targetStartContentX + innerIconW + compoundSpacing, bY + (buttonHeight / 2.0f) + 16.0f, gameUI.paintTextReference);
+            env->DeleteLocalRef(adLabel);
+            
             if (gameUI.paintTextReference) {
                 jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
-                jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
-                env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
+                jmethodID setCol = env->GetMethodID(paintCls, "setColor", "(I)V");
+                env->CallVoidMethod(gameUI.paintTextReference, setCol, baseTxtColor);
             }
-            gameUI.UIButtons.push_back({bX, bY, bW, bH, 8801, 0});
+            gameUI.UIButtons.push_back({bX, bY, bW, buttonHeight, 8801, 0});
         }
 
-        // --- SCENARIO B: THREE-THEME ENGINE SELECTION DIALOG ---
+        // --- POPUP CASE 2: THEME SELECT MATRIX ---
         if (gameUI.isThemePopupActive) {
             jstring popTitle = env->NewStringUTF("Choose Theme Mode");
-            env->CallVoidMethod(canvas, gameUI.midDrawText, popTitle, dX + 45.0f, dY + 90.0f, gameUI.paintTextReference);
+            env->CallVoidMethod(canvas, gameUI.midDrawText, popTitle, dX + 45.0f, dY + 80.0f, gameUI.paintTextReference);
             env->DeleteLocalRef(popTitle);
 
-            float itemSlotY = dY + 140.0f;
-            std::string modes[] = {"Normal Light Theme", "Pure Dark Black Theme", "System Default Auto"};
+            float slotY = dY + 130.0f;
+            std::string items[] = {"Normal Light Theme", "Pure Dark Black Theme", "System Default Auto"};
 
             for (int k = 0; k < 3; k++) {
-                int rectColor = (gameUI.activeTheme == k) ? 0xFF007AFF : (gameUI.isCurrentlyDark ? 0xFF2C2C2E : 0xFFE5E5EA);
-                drawRoundRectNative(env, canvas, dX + 40.0f, itemSlotY, dX + dW - 40.0f, itemSlotY + 75.0f, 12, 12, rectColor);
+                int bgBoxColor = (gameUI.activeTheme == k) ? 0xFF007AFF : (gameUI.isCurrentlyDark ? 0xFF2C2C2E : 0xFFE5E5EA);
+                drawRoundRectNative(env, canvas, dX + 40.0f, slotY, dX + dW - 40.0f, slotY + 75.0f, 16, 16, bgBoxColor);
 
                 if (gameUI.paintTextReference) {
                     jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
-                    jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
-                    env->CallVoidMethod(gameUI.paintTextReference, setColor, (gameUI.activeTheme == k) ? 0xFFFFFFFF : baseTxtColor);
+                    jmethodID setCol = env->GetMethodID(paintCls, "setColor", "(I)V");
+                    env->CallVoidMethod(gameUI.paintTextReference, setCol, (gameUI.activeTheme == k) ? 0xFFFFFFFF : baseTxtColor);
                 }
-
-                jstring mTxt = env->NewStringUTF(modes[k].c_str());
-                env->CallVoidMethod(canvas, gameUI.midDrawText, mTxt, dX + 65.0f, itemSlotY + 52.0f, gameUI.paintTextReference);
+                jstring mTxt = env->NewStringUTF(items[k].c_str());
+                env->CallVoidMethod(canvas, gameUI.midDrawText, mTxt, dX + 65.0f, slotY + 52.0f, gameUI.paintTextReference);
                 env->DeleteLocalRef(mTxt);
 
-                gameUI.UIButtons.push_back({dX + 40.0f, itemSlotY, dW - 80.0f, 75.0f, 7700 + k, 0});
-                itemSlotY += 95.0f;
+                gameUI.UIButtons.push_back({dX + 40.0f, slotY, dW - 80.0f, 75.0f, 7700 + k, 0});
+                slotY += 92.0f;
             }
-
             if (gameUI.paintTextReference) {
                 jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
-                jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
-                env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
+                jmethodID setCol = env->GetMethodID(paintCls, "setColor", "(I)V");
+                env->CallVoidMethod(gameUI.paintTextReference, setCol, baseTxtColor);
             }
-        }
-
-        // --- SCENARIO C: STRUCTURAL FIVE STAR RATING POPUP LINK MAPPING ---
+       }
+        // --- POPUP CASE 3: PROFESSIONAL 5-STAR RATING DIALOG ---
         if (gameUI.isRatingPopupActive) {
+            setPaintFontWeight(env, gameUI.paintTextReference, true);
             jstring rHead = env->NewStringUTF("Please rate our app");
-            env->CallVoidMethod(canvas, gameUI.midDrawText, rHead, dX + 50.0f, dY + 100.0f, gameUI.paintTextReference);
+            env->CallVoidMethod(canvas, gameUI.midDrawText, rHead, dX + (dW * 0.16f), dY + 95.0f, gameUI.paintTextReference);
             env->DeleteLocalRef(rHead);
+            setPaintFontWeight(env, gameUI.paintTextReference, false);
 
-            // Five Stars dynamic rendering tracking loop
-            float starBlockW = 60.0f;
-            float starSpacerX = 15.0f;
-            float starStartX = dX + (dW - (5 * starBlockW + 4 * starSpacerX)) / 2.0f;
-            float starY = dY + 140.0f;
+            // Render matching large 70px scale stars centered on dialog panel
+            float starSize = 70.0f; 
+            float starSpacerX = 12.0f;
+            float starStartX = dX + (dW - (5 * starSize + 4 * starSpacerX)) / 2.0f;
+            float starY = dY + 130.0f;
 
             for (int s = 0; s < 5; s++) {
-                jobject starTint = (s < gameUI.selectedRatingStars) ? tintYellow : tintGray;
+                jobject starPaint = (s < gameUI.selectedRatingStars) ? tintYellow : tintGray;
                 if (gameUI.assetBitmaps[ASSET_STAR]) {
-                    renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_STAR], starStartX + s * (starBlockW + starSpacerX), starY, starBlockW, starTint);
+                    renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_STAR], starStartX + s * (starSize + starSpacerX), starY, starSize, starPaint);
                 }
-                gameUI.UIButtons.push_back({starStartX + s * (starBlockW + starSpacerX), starY, starBlockW, starBlockW, 7800 + s, 0});
+                gameUI.UIButtons.push_back({starStartX + s * (starSize + starSpacerX), starY, starSize, starSize, 7800 + s, 0});
             }
 
-            // Submit Button placement
-            float subW = dW * 0.65f;
-            float subH = 80.0f;
+            float subW = dW * 0.70f;
+            float subH = 85.0f;
             float subX = dX + (dW - subW) / 2.0f;
-            float subY = dY + dH - subH - 35.0f;
+            float subY = dY + dH - subH - 30.0f;
 
             drawRoundRectNative(env, canvas, subX, subY, subX + subW, subY + subH, 16, 16, 0xFF34C759);
 
             if (gameUI.paintTextReference) {
                 jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
-                jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
-                env->CallVoidMethod(gameUI.paintTextReference, setColor, 0xFFFFFFFF);
+                jmethodID setCol = env->GetMethodID(paintCls, "setColor", "(I)V");
+                env->CallVoidMethod(gameUI.paintTextReference, setCol, 0xFFFFFFFF);
             }
-            jstring subTextStr = env->NewStringUTF("Submit");
-            env->CallVoidMethod(canvas, gameUI.midDrawText, subTextStr, subX + (subW * 0.35f), subY + 55.0f, gameUI.paintTextReference);
-            env->DeleteLocalRef(subTextStr);
-
+            jstring subTxt = env->NewStringUTF("Submit");
+            env->CallVoidMethod(canvas, gameUI.midDrawText, subTxt, subX + (subW * 0.36f), subY + 58.0f, gameUI.paintTextReference);
+            env->DeleteLocalRef(subTxt);
             if (gameUI.paintTextReference) {
                 jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
-                jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
-                env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
+                jmethodID setCol = env->GetMethodID(paintCls, "setColor", "(I)V");
+                env->CallVoidMethod(gameUI.paintTextReference, setCol, baseTxtColor);
             }
             gameUI.UIButtons.push_back({subX, subY, subW, subH, 7899, 0});
         }
 
-        // --- SCENARIO D: MODAL PAUSE ENGINE MENU LAYER OVERLAY (No list indexing numbers) ---
+        // --- POPUP CASE 4: PAUSE OVERLAY DISPLAY (No index numbering elements) ---
         if (gameUI.isPausePopupActive) {
-            float listY = dY + 50.0f;
+            float listY = dY + 45.0f;
             float elementH = 95.0f;
-            float elementW = dW * 0.85f;
+            float elementW = dW * 0.88f;
             float elementX = dX + (dW - elementW) / 2.0f;
 
-            // Row 1: Resume Play Icon button mapping
+            // Row 1: Resume Play Option
             if (gameUI.assetBitmaps[ASSET_PLAY]) {
-                renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PLAY], elementX + 30, listY + 15, 60.0f, tintActive);
+                renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PLAY], elementX + 35, listY + 15, 65.0f, tintActive);
             }
             jstring rsm = env->NewStringUTF("PLAY GAME");
-            env->CallVoidMethod(canvas, gameUI.midDrawText, rsm, elementX + 130.0f, listY + 60.0f, gameUI.paintTextReference);
+            env->CallVoidMethod(canvas, gameUI.midDrawText, rsm, elementX + 135.0f, listY + 62.0f, gameUI.paintTextReference);
             env->DeleteLocalRef(rsm);
             gameUI.UIButtons.push_back({elementX, listY, elementW, elementH, 5501, 0});
 
-            // Row 2: Retry Icon button mapping
+            // Row 2: Retry Option
             listY += elementH;
             if (gameUI.assetBitmaps[ASSET_RETRY]) {
-                renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_RETRY], elementX + 30, listY + 15, 60.0f, tintActive);
+                renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_RETRY], elementX + 35, listY + 15, 65.0f, tintActive);
             }
             jstring rtr = env->NewStringUTF("RETRY LEVEL");
-            env->CallVoidMethod(canvas, gameUI.midDrawText, rtr, elementX + 130.0f, listY + 60.0f, gameUI.paintTextReference);
+            env->CallVoidMethod(canvas, gameUI.midDrawText, rtr, elementX + 135.0f, listY + 62.0f, gameUI.paintTextReference);
             env->DeleteLocalRef(rtr);
             gameUI.UIButtons.push_back({elementX, listY, elementW, elementH, 5502, 0});
 
-            // Row 3: Adaptive Sound On / Off asset toggle mapping
+            // Row 3: Sound Switch Manager
             listY += elementH;
-            int soundAssetIndex = gameUI.audioEnabled ? ASSET_SOUND_ON : ASSET_SOUND_OFF;
-            if (gameUI.assetBitmaps[soundAssetIndex]) {
-                renderBmp(env, canvas, gameUI.assetBitmaps[soundAssetIndex], elementX + 30, listY + 15, 60.0f, tintActive);
+            int sndIndex = gameUI.audioEnabled ? ASSET_SOUND_ON : ASSET_SOUND_OFF;
+            if (gameUI.assetBitmaps[sndIndex]) {
+                renderBmp(env, canvas, gameUI.assetBitmaps[sndIndex], elementX + 35, listY + 15, 65.0f, tintActive);
             }
-            std::string audioLabelStr = gameUI.audioEnabled ? "AUDIO ON" : "AUDIO OFF";
-            jstring jAudioL = env->NewStringUTF(audioLabelStr.c_str());
-            env->CallVoidMethod(canvas, gameUI.midDrawText, jAudioL, elementX + 130.0f, listY + 60.0f, gameUI.paintTextReference);
+            std::string audioStringLabel = gameUI.audioEnabled ? "AUDIO ON" : "AUDIO OFF";
+            jstring jAudioL = env->NewStringUTF(audioStringLabel.c_str());
+            env->CallVoidMethod(canvas, gameUI.midDrawText, jAudioL, elementX + 135.0f, listY + 62.0f, gameUI.paintTextReference);
             env->DeleteLocalRef(jAudioL);
             gameUI.UIButtons.push_back({elementX, listY, elementW, elementH, 5503, 0});
 
-            // Row 4: Home Icon redirection mapping
+            // Row 4: Home Redirection Option
             listY += elementH;
             if (gameUI.assetBitmaps[ASSET_HOME]) {
-                renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HOME], elementX + 30, listY + 15, 60.0f, tintActive);
+                renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HOME], elementX + 35, listY + 15, 65.0f, tintActive);
             }
             jstring hme = env->NewStringUTF("QUIT TO MENU");
-            env->CallVoidMethod(canvas, gameUI.midDrawText, hme, elementX + 130.0f, listY + 60.0f, gameUI.paintTextReference);
+            env->CallVoidMethod(canvas, gameUI.midDrawText, hme, elementX + 135.0f, listY + 62.0f, gameUI.paintTextReference);
             env->DeleteLocalRef(hme);
             gameUI.UIButtons.push_back({elementX, listY, elementW, elementH, 5504, 0});
         }
@@ -707,13 +810,13 @@ JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject obj, jfloat x, jfloat y) {
     if (!gameUI.engineInitialized) return;
 
-    // Filter touch matrices through blocking dialog layers if active
-    bool blocksBackground = (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive || gameUI.isPausePopupActive);
+    bool blockingPopup = (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive || gameUI.isPausePopupActive);
 
     for (const auto& btn : gameUI.UIButtons) {
         if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
             
-            if (btn.actionCode == 9999) { // Global Close Pop-up mapping code handler
+            // Universal Tap to Close any active modal instantly
+            if (btn.actionCode == 9999) { 
                 gameUI.isHintPopupActive = false;
                 gameUI.isThemePopupActive = false;
                 gameUI.isRatingPopupActive = false;
@@ -724,7 +827,6 @@ Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject 
             if (gameUI.isThemePopupActive && btn.actionCode >= 7700 && btn.actionCode <= 7702) {
                 gameUI.activeTheme = (ThemeMode)(btn.actionCode - 7700);
                 gameUI.isThemePopupActive = false;
-                
                 jclass actCls = env->GetObjectClass(obj);
                 jmethodID refreshMid = env->GetMethodID(actCls, "triggerThemeRebuild", "()V");
                 if (refreshMid) env->CallVoidMethod(obj, refreshMid);
@@ -734,7 +836,7 @@ Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject 
             if (gameUI.isRatingPopupActive) {
                 if (btn.actionCode >= 7800 && btn.actionCode <= 7804) {
                     gameUI.selectedRatingStars = (btn.actionCode - 7800) + 1;
-                } else if (btn.actionCode == 7899) { // Submit rating
+                } else if (btn.actionCode == 7899) {
                     gameUI.isRatingPopupActive = false;
                 }
                 return;
@@ -746,25 +848,25 @@ Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject 
             }
 
             if (gameUI.isPausePopupActive) {
-                if (btn.actionCode == 5501) gameUI.isPausePopupActive = false; // Play/Resume
-                else if (btn.actionCode == 5502) gameUI.isPausePopupActive = false; // Retry
-                else if (btn.actionCode == 5503) gameUI.audioEnabled = !gameUI.audioEnabled; // Sound Toggle
-                else if (btn.actionCode == 5504) { // Quit to Home Menu
+                if (btn.actionCode == 5501) gameUI.isPausePopupActive = false;
+                else if (btn.actionCode == 5502) gameUI.isPausePopupActive = false;
+                else if (btn.actionCode == 5503) gameUI.audioEnabled = !gameUI.audioEnabled;
+                else if (btn.actionCode == 5504) {
                     gameUI.isPausePopupActive = false;
                     gameUI.currentState = STATE_HOME;
                 }
                 return;
             }
 
-            if (blocksBackground) return; // Prevent clicking background buttons when popups are up
+            if (blockingPopup) return; 
 
-            // --- Grid Matrix Index touch bindings tracker ---
+            // Grid Level index interactions selection logic
             if (btn.actionCode >= 3000 && btn.actionCode <= 3049) {
-                int index = btn.levelValue;
-                int nextIndex = getNextUnlockableLevel();
-                if (gameUI.levelsUnlocked[index] || index == nextIndex) {
-                    gameUI.levelsUnlocked[index] = true; 
-                    gameUI.currentPlayingLevel = index + 1;
+                int lvlIdx = btn.levelValue;
+                int nextIdx = getNextUnlockableLevel();
+                if (gameUI.levelsUnlocked[lvlIdx] || lvlIdx == nextIdx) {
+                    gameUI.levelsUnlocked[lvlIdx] = true;
+                    gameUI.currentPlayingLevel = lvlIdx + 1;
                     gameUI.currentState = STATE_GAMEPLAY;
                 }
                 break;
@@ -775,34 +877,37 @@ Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject 
                 case 9002: gameUI.currentState = STATE_LEVELS; break;
                 case 9003: gameUI.currentState = STATE_SETTINGS; break;
                 case 2001: gameUI.currentState = STATE_GAMEPLAY; break;
-                case 2005: // Touchable Played Level Box Redirects right to the active gameplay state
-                    gameUI.currentState = STATE_GAMEPLAY;
+                case 2010: { // Purchase Trigger logic endpoint for Remove Ads component
+                    jclass actCls = env->GetObjectClass(obj);
+                    jmethodID purchaseMid = env->GetMethodID(actCls, "dispatchRemoveAdsPurchase", "()V");
+                    if (purchaseMid) env->CallVoidMethod(obj, purchaseMid);
                     break;
-                case 3500: // Complete All Levels Simulator Button Trigger
-                    for(int i=0; i<50; i++) gameUI.levelsUnlocked[i] = true;
+                }
+                case 3500:
+                    for(int i = 0; i < 50; i++) gameUI.levelsUnlocked[i] = true;
                     gameUI.currentState = STATE_LEVELS;
                     break;
-                case 4001: // Step tracking win handler
+                case 4001:
                     if (gameUI.currentPlayingLevel < 50) {
                         gameUI.levelsUnlocked[gameUI.currentPlayingLevel] = true;
                         gameUI.currentPlayingLevel++;
                     }
                     gameUI.currentState = STATE_LEVELS;
                     break;
-                case 4002: gameUI.isPausePopupActive = true; break; // Pause Popup Trigger
-                case 4003: gameUI.isHintPopupActive = true; break;  // Hint Popup Trigger
-                case 6501: gameUI.isThemePopupActive = true; break; // Theme Selector Popup Trigger
-                case 6504: // Rate App Popup Trigger
+                case 4002: gameUI.isPausePopupActive = true; break;
+                case 4003: gameUI.isHintPopupActive = true; break;
+                case 6501: gameUI.isThemePopupActive = true; break;
+                case 6504: 
                     gameUI.selectedRatingStars = 0;
                     gameUI.isRatingPopupActive = true; 
                     break;
-                case 6502: { // Privacy Policy Intent Dispatcher
+                case 6502: {
                     jclass actCls = env->GetObjectClass(obj);
                     jmethodID midIntent = env->GetMethodID(actCls, "dispatchPrivacyPolicyIntent", "()V");
                     if (midIntent) env->CallVoidMethod(obj, midIntent);
                     break;
                 }
-                case 6503: { // Share Intent Dispatcher
+                case 6503: {
                     jclass actCls = env->GetObjectClass(obj);
                     jmethodID midShare = env->GetMethodID(actCls, "dispatchShareIntent", "()V");
                     if (midShare) env->CallVoidMethod(obj, midShare);
