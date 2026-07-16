@@ -6,7 +6,6 @@ import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
-import android.graphics.ColorFilter;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.net.Uri;
@@ -102,7 +101,7 @@ public class MainActivity extends AppCompatActivity {
             gestureDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
                 @Override
                 public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
-                    nativeApplyScroll(-distanceY); // Dispatches precise scrolling values down to C++ layer
+                    nativeApplyScroll(-distanceY);
                     return true;
                 }
             });
@@ -111,16 +110,31 @@ public class MainActivity extends AppCompatActivity {
                     == Configuration.UI_MODE_NIGHT_YES;
             initNativeEngine(isSystemDark);
 
-                                    int[] drawables = {
-                R.drawable.arrow, R.drawable.tile, R.drawable.glow, R.drawable.back,
-                R.drawable.home, R.drawable.retry, R.drawable.next, R.drawable.play,
-                R.drawable.paused, R.drawable.settings, R.drawable.sound_on,
-                R.drawable.soundoff, R.drawable.tick, R.drawable.star,
-                R.drawable.hint, R.drawable.close, R.drawable.lock, R.drawable.share,
-                R.drawable.level, R.drawable.watchads, R.drawable.removads
+            // Clean, uniform continuous array indexing
+            int[] drawables = {
+                R.drawable.arrow, 
+                R.drawable.tile, 
+                R.drawable.glow, 
+                R.drawable.back,
+                R.drawable.home, 
+                R.drawable.retry, 
+                R.drawable.next, 
+                R.drawable.play,
+                R.drawable.paused, 
+                R.drawable.settings, 
+                R.drawable.sound_on,
+                R.drawable.soundoff, 
+                R.drawable.tick, 
+                R.drawable.star,
+                R.drawable.hint, 
+                R.drawable.close, 
+                R.drawable.lock, 
+                R.drawable.share,
+                R.drawable.level, 
+                R.drawable.watchads, 
+                R.drawable.removads
             };
 
-            
             for (int i = 0; i < drawables.length; i++) {
                 try {
                     Bitmap bmp = BitmapFactory.decodeResource(getResources(), drawables[i]);
