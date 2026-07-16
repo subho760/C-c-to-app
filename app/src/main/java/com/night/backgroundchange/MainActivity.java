@@ -37,31 +37,53 @@ public class MainActivity extends AppCompatActivity {
         setContentView(gameView);
     }
 
-    // Dynamic tint helper invoked from native C++ code to recolor white assets
+    // Dynamic pixel inversion coloring filter generator
     public Paint getTintedPaint(int colorHex) {
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         int r = (colorHex >> 16) & 0xFF;
         int g = (colorHex >> 8) & 0xFF;
         int b = colorHex & 0xFF;
 
-        float[] colorMatrix = new float[]{
+        float[] inversionMatrix = new float[]{
                 0, 0, 0, 0, r,
                 0, 0, 0, 0, g,
                 0, 0, 0, 0, b,
                 0, 0, 0, 1, 0
         };
-        ColorFilter filter = new ColorMatrixColorFilter(colorMatrix);
+        ColorFilter filter = new ColorMatrixColorFilter(inversionMatrix);
         paint.setColorFilter(filter);
         return paint;
     }
 
-    // Dynamic theme reload trigger called when theme option changes
+    // Native loop callback mechanism to reinitialize engine components
     public void triggerThemeRebuild() {
         runOnUiThread(() -> {
             boolean isSystemDark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) 
                     == Configuration.UI_MODE_NIGHT_YES;
             initNativeEngine(isSystemDark);
         });
+    }
+
+    // Intent engine method to launch default browser endpoints for Privacy Policies
+    public void dispatchPrivacyPolicyIntent() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"));
+            startActivity(intent);
+        } catch (Exception e) {
+            android.util.Log.e("IntentDispatcher", "Privacy Policy target failure");
+        }
+    }
+
+    // Intent engine method to broadcast generic system action shares
+    public void dispatchShareIntent() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("text/plain");
+            intent.putExtra(Intent.EXTRA_TEXT, "Check out this awesome game: Run Arrow!");
+            startActivity(Intent.createChooser(intent, "Share Via"));
+        } catch (Exception e) {
+            android.util.Log.e("IntentDispatcher", "System Share broadcast failure");
+        }
     }
 
     class StructuralGameView extends SurfaceView implements SurfaceHolder.Callback, Runnable {
@@ -78,7 +100,7 @@ public class MainActivity extends AppCompatActivity {
                     == Configuration.UI_MODE_NIGHT_YES;
             initNativeEngine(isSystemDark);
 
-            // Correctly bind raw drawable resources
+            // Resource mapping matrices
             int[] structuralDrawableIds = {
                 R.drawable.arrow, R.drawable.tile, R.drawable.glow, R.drawable.back,
                 R.drawable.home, R.drawable.retry, R.drawable.next, R.drawable.play,
