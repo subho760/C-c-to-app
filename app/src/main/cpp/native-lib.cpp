@@ -1,5 +1,8 @@
 #include "game_structures.h"
 
+// THIS DEFINES THE STORAGE FOR THE GLOBAL VARIABLE (Fixes the linker error!)
+GameMenuStructure gameUI;
+
 // Define helper utilities
 void renderBmp(JNIEnv* env, jobject canvas, jobject bitmap, float leftX, float topY, float forcedWidth, jobject customPaint) {
     if (!canvas || !bitmap || !gameUI.midSave) return;
