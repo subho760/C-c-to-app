@@ -4,6 +4,7 @@
 #include <jni.h>
 #include <string>
 #include <vector>
+#include <cmath>
 
 enum GameState { STATE_LOADING, STATE_HOME, STATE_SETTINGS, STATE_GAMEPLAY, STATE_LEVELS };
 enum ThemeMode { THEME_SYSTEM, THEME_LIGHT, THEME_DARK };
@@ -72,18 +73,18 @@ public:
 
 extern GameMenuStructure gameUI;
 
-// Declaring utility drawing wraps across components
-void renderBmp(JNIEnv* env, jobject canvas, jobject bitmap, float leftX, float topY, float forcedWidth, jobject customPaint = nullptr);
-void drawRoundRectNative(JNIEnv* env, jobject canvas, float left, float top, float right, float bottom, float rx, float ry, int colorHex);
-void drawRealShadowRoundRect(JNIEnv* env, jobject canvas, float left, float top, float right, float bottom, float rx, float ry);
-int getNextUnlockableLevel();
-void setPaintFontWeight(JNIEnv* env, jobject paintRef, bool isBold);
-jobject getTintPaint(JNIEnv* env, jobject obj, int colorHex);
+// Shared Helper Functions (Marked extern so any C++ file linking them finds them perfectly)
+extern void renderBmp(JNIEnv* env, jobject canvas, jobject bitmap, float leftX, float topY, float forcedWidth, jobject customPaint = nullptr);
+extern void drawRoundRectNative(JNIEnv* env, jobject canvas, float left, float top, float right, float bottom, float rx, float ry, int colorHex);
+extern void drawRealShadowRoundRect(JNIEnv* env, jobject canvas, float left, float top, float right, float bottom, float rx, float ry);
+extern void setPaintFontWeight(JNIEnv* env, jobject paintRef, bool isBold);
+extern jobject getTintPaint(JNIEnv* env, jobject obj, int colorHex);
+extern int getNextUnlockableLevel();
 
-// Declaring dynamic UI layer logic implemented inside ui_manager.cpp
-void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, int baseTxtColor, jobject tintRed);
-void drawWatermark(JNIEnv* env, jobject canvas);
-void drawHorizontalPausePopup(JNIEnv* env, jobject canvas, float dX, float dY, float dW, float dH, jobject tintActive);
-void checkGlobalClosePopupDismiss(float touchX, float touchY);
+// UI Layer Drawing Functions
+extern void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, int baseTxtColor, jobject tintRed);
+extern void drawWatermark(JNIEnv* env, jobject canvas);
+extern void drawHorizontalPausePopup(JNIEnv* env, jobject canvas, float dX, float dY, float dW, float dH, jobject tintActive);
+extern void checkGlobalClosePopupDismiss(float touchX, float touchY);
 
 #endif
