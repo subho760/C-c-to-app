@@ -71,7 +71,7 @@ public:
     jobject paintShapeReference = nullptr;
 };
 
-// Global instance variable shared across all files
+// Declares the global object to all compiling files
 extern GameMenuStructure gameUI;
 
 // Shared Helper Functions
