@@ -1,7 +1,6 @@
 #include "game_structures.h"
 
-GameMenuStructure gameUI;
-
+// Define helper utilities
 void renderBmp(JNIEnv* env, jobject canvas, jobject bitmap, float leftX, float topY, float forcedWidth, jobject customPaint) {
     if (!canvas || !bitmap || !gameUI.midSave) return;
 
@@ -142,7 +141,6 @@ JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject obj, jfloat x, jfloat y) {
     if (!gameUI.engineInitialized) return;
 
-    // Fix #1: Process close hits systematically on any visible pop-ups
     checkGlobalClosePopupDismiss(x, y);
 
     bool blockingPopup = (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive || gameUI.isPausePopupActive);
@@ -158,7 +156,6 @@ Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject 
                 return;
             }
 
-            // Fix #3: Seamless functional logic when toggling active theme layers
             if (gameUI.isThemePopupActive && btn.actionCode >= 7700 && btn.actionCode <= 7702) {
                 gameUI.activeTheme = (ThemeMode)(btn.actionCode - 7700);
                 gameUI.isThemePopupActive = false;
