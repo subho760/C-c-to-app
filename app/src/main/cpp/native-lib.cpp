@@ -421,7 +421,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             drawRoundRectNative(env, canvas, cX, completeBtnY, cX + cW, completeBtnY + 85.0f, 20, 20, 0xFF34C759);
 
             jstring completeTxt = env->NewStringUTF("COMPLETE ALL LEVELS");
-            env->CallVoidMethod(canvas, gameUI.midDrawText, completeTxt, cx + 75.0f, completeBtnY + 58.0f, gameUI.paintTextReference);
+            env->CallVoidMethod(canvas, gameUI.midDrawText, completeTxt, cX + 75.0f, completeBtnY + 58.0f, gameUI.paintTextReference);
             env->DeleteLocalRef(completeTxt);
 
             gameUI.UIButtons.push_back({cX, completeBtnY, cW, 85.0f, 3500, 0});
