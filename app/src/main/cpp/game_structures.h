@@ -71,20 +71,21 @@ public:
     jobject paintShapeReference = nullptr;
 };
 
+// Global instance variable shared across all files
 extern GameMenuStructure gameUI;
 
-// Shared Helper Functions (Marked extern so any C++ file linking them finds them perfectly)
-extern void renderBmp(JNIEnv* env, jobject canvas, jobject bitmap, float leftX, float topY, float forcedWidth, jobject customPaint = nullptr);
-extern void drawRoundRectNative(JNIEnv* env, jobject canvas, float left, float top, float right, float bottom, float rx, float ry, int colorHex);
-extern void drawRealShadowRoundRect(JNIEnv* env, jobject canvas, float left, float top, float right, float bottom, float rx, float ry);
-extern void setPaintFontWeight(JNIEnv* env, jobject paintRef, bool isBold);
-extern jobject getTintPaint(JNIEnv* env, jobject obj, int colorHex);
-extern int getNextUnlockableLevel();
+// Shared Helper Functions
+void renderBmp(JNIEnv* env, jobject canvas, jobject bitmap, float leftX, float topY, float forcedWidth, jobject customPaint = nullptr);
+void drawRoundRectNative(JNIEnv* env, jobject canvas, float left, float top, float right, float bottom, float rx, float ry, int colorHex);
+void drawRealShadowRoundRect(JNIEnv* env, jobject canvas, float left, float top, float right, float bottom, float rx, float ry);
+void setPaintFontWeight(JNIEnv* env, jobject paintRef, bool isBold);
+jobject getTintPaint(JNIEnv* env, jobject obj, int colorHex);
+int getNextUnlockableLevel();
 
 // UI Layer Drawing Functions
-extern void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, int baseTxtColor, jobject tintRed);
-extern void drawWatermark(JNIEnv* env, jobject canvas);
-extern void drawHorizontalPausePopup(JNIEnv* env, jobject canvas, float dX, float dY, float dW, float dH, jobject tintActive);
-extern void checkGlobalClosePopupDismiss(float touchX, float touchY);
+void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, int baseTxtColor, jobject tintRed);
+void drawWatermark(JNIEnv* env, jobject canvas);
+void drawHorizontalPausePopup(JNIEnv* env, jobject canvas, float dX, float dY, float dW, float dH, jobject tintActive);
+void checkGlobalClosePopupDismiss(float touchX, float touchY);
 
 #endif
