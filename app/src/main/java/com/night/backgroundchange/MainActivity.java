@@ -133,6 +133,7 @@ public class MainActivity extends AppCompatActivity {
                 R.drawable.level, 
                 R.drawable.watchads, 
                 R.drawable.removeads
+
             };
 
             for (int i = 0; i < drawables.length; i++) {
