@@ -244,52 +244,44 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     jobject tintYellow = getTintPaint(env, obj, 0xFFFFCC00);
     jobject tintRed = getTintPaint(env, obj, 0xFFFF3B30);
 
-    // Dynamic Navigation Dimensions
     float footerHeight = gameUI.screenHeight * 0.13f;
     float footerY = gameUI.screenHeight - footerHeight;
 
-    // --- SHARED NAVIGATION FOOTER ---
     if (gameUI.currentState == STATE_HOME || gameUI.currentState == STATE_SETTINGS || gameUI.currentState == STATE_LEVELS) {
         drawRoundRectNative(env, canvas, 0, footerY, gameUI.screenWidth, gameUI.screenHeight, 0, 0, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFF8F9FA);
 
-        float navIconSize = gameUI.screenWidth * 0.11f; // Scaled up +15% bigger
-        float paddingEdge = 65.0f; // Shifted safely away from borders
+        float navIconSize = gameUI.screenWidth * 0.11f;
+        float paddingEdge = 65.0f;
         float innerSpaceY = footerY + (footerHeight / 2.0f) - (navIconSize / 2.0f);
 
-        // Home Navigation Button
-        jobject homePaint = (gameUI.currentState == STATE_HOME) ? tintActive : tintGray;
         if (gameUI.assetBitmaps[ASSET_HOME]) {
+            jobject homePaint = (gameUI.currentState == STATE_HOME) ? tintActive : tintGray;
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HOME], paddingEdge, innerSpaceY, navIconSize, homePaint);
             gameUI.UIButtons.push_back({paddingEdge, innerSpaceY, navIconSize, navIconSize, 9001, 0});
         }
 
-        // Levels Navigation Button
-        jobject lvlPaint = (gameUI.currentState == STATE_LEVELS) ? tintActive : tintGray;
-        float centerLvlX = (gameUI.screenWidth / 2.0f) - (navIconSize / 2.0f);
         if (gameUI.assetBitmaps[ASSET_LEVEL]) {
+            jobject lvlPaint = (gameUI.currentState == STATE_LEVELS) ? tintActive : tintGray;
+            float centerLvlX = (gameUI.screenWidth / 2.0f) - (navIconSize / 2.0f);
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LEVEL], centerLvlX, innerSpaceY, navIconSize, lvlPaint);
             gameUI.UIButtons.push_back({centerLvlX, innerSpaceY, navIconSize, navIconSize, 9002, 0});
         }
 
-        // Settings Navigation Button
-        jobject setPaint = (gameUI.currentState == STATE_SETTINGS) ? tintActive : tintGray;
-        float rightSetX = gameUI.screenWidth - navIconSize - paddingEdge;
         if (gameUI.assetBitmaps[ASSET_SETTINGS]) {
+            jobject setPaint = (gameUI.currentState == STATE_SETTINGS) ? tintActive : tintGray;
+            float rightSetX = gameUI.screenWidth - navIconSize - paddingEdge;
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_SETTINGS], rightSetX, innerSpaceY, navIconSize, setPaint);
             gameUI.UIButtons.push_back({rightSetX, innerSpaceY, navIconSize, navIconSize, 9003, 0});
         }
     }
 
-    // --- STATE: LOADING ---
     if (gameUI.currentState == STATE_LOADING) {
         gameUI.loadingProgress += 0.02f;
         if (gameUI.loadingProgress >= 1.0f) gameUI.currentState = STATE_HOME;
         return;
     }
 
-    // --- STATE: HOME SCREEN ---
     if (gameUI.currentState == STATE_HOME) {
-        // App Title Positioning Layout (Removed standard "A" typography matching parameters)
         float textStartX = gameUI.screenWidth * 0.18f;
         float textStartY = 160.0f;
 
@@ -304,7 +296,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         env->CallVoidMethod(canvas, gameUI.midDrawText, titlePart1, textStartX, textStartY, gameUI.paintTextReference);
         env->DeleteLocalRef(titlePart1);
 
-        // Render Red Upwards Directional Arrow Asset in place of removed character
         float customArrowSize = 95.0f; 
         float customArrowX = textStartX + 225.0f;
         float customArrowY = textStartY - 82.0f;
@@ -312,7 +303,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], customArrowX, customArrowY, customArrowSize, tintRed);
         }
 
-        // Render Optional removeads.png Asset inline next to Header Title
         float removeAdsX = gameUI.screenWidth - 130.0f;
         float removeAdsY = textStartY - 75.0f;
         if (gameUI.assetBitmaps[ASSET_REMOVE_ADS]) {
@@ -320,7 +310,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({removeAdsX, removeAdsY, 90.0f, 90.0f, 2010, 0});
         }
 
-        // Restoring typography settings defaults
         setPaintFontWeight(env, gameUI.paintTextReference, false);
         if (gameUI.paintTextReference) {
             jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
@@ -328,27 +317,23 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 45.0f);
         }
 
-        // Square Brand Logo Watermark Box Structure Layout (Centered Light Gray Symbol Matrix)
         float wmSize = gameUI.screenWidth * 0.36f;
         float wmX = (gameUI.screenWidth - wmSize) / 2.0f;
         float wmY = gameUI.screenHeight * 0.28f;
         
-        // Solid square layout watermark base plate
         drawRoundRectNative(env, canvas, wmX, wmY, wmX + wmSize, wmY + wmSize, 28, 28, gameUI.isCurrentlyDark ? 0xFF1C1C1E : 0xFFF2F2F7);
 
-        // Arrow Component 1: Center Downward Directional
         float iconItemSize = wmSize * 0.38f;
         jobject wmTint = getTintPaint(env, obj, gameUI.isCurrentlyDark ? 0xFF2C2C2E : 0xFFD1D1D6);
         
         env->CallIntMethod(canvas, gameUI.midSave);
         env->CallVoidMethod(canvas, gameUI.midTranslate, wmX + (wmSize / 2.0f), wmY + (wmSize / 3.0f));
-        env->CallVoidMethod(canvas, gameUI.midScale, 1.0f, -1.0f, 0.0f, 0.0f); // Flips to point down
+        env->CallVoidMethod(canvas, gameUI.midScale, 1.0f, -1.0f, 0.0f, 0.0f);
         if (gameUI.assetBitmaps[ASSET_ARROW]) {
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], -iconItemSize / 2.0f, -iconItemSize / 2.0f, iconItemSize, wmTint);
         }
         env->CallVoidMethod(canvas, gameUI.midRestore);
 
-        // Arrow Component 2: Left Directional
         env->CallIntMethod(canvas, gameUI.midSave);
         env->CallVoidMethod(canvas, gameUI.midTranslate, wmX + (wmSize / 3.0f), wmY + (wmSize * 0.68f));
         jclass canvasCls = env->GetObjectClass(canvas);
@@ -359,7 +344,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         }
         env->CallVoidMethod(canvas, gameUI.midRestore);
 
-        // Arrow Component 3: Right Directional placed underneath Left component
         env->CallIntMethod(canvas, gameUI.midSave);
         env->CallVoidMethod(canvas, gameUI.midTranslate, wmX + (wmSize * 0.68f), wmY + (wmSize * 0.68f));
         if (midRotate) env->CallVoidMethod(canvas, midRotate, 90.0f, 0.0f, 0.0f);
@@ -368,10 +352,9 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         }
         env->CallVoidMethod(canvas, gameUI.midRestore);
 
-        // Large Play Button moved down screen with expanded scale configurations
-        float playW = gameUI.screenWidth * 0.45f; // Enlarged layout footprint
+        float playW = gameUI.screenWidth * 0.45f;
         float playX = (gameUI.screenWidth / 2.0f) - (playW / 2.0f);
-        float playY = gameUI.screenHeight * 0.48f; // Repositioned further down page safely
+        float playY = gameUI.screenHeight * 0.48f;
         
         if (gameUI.assetBitmaps[ASSET_PLAY]) {
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PLAY], playX, playY, playW, tintActive);
@@ -379,7 +362,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         }
     }
 
-    // --- STATE: SCROLLABLE LEVEL GRID SELECTION MATRIX (3 Column Max Grid Layout) ---
     if (gameUI.currentState == STATE_LEVELS) {
         setPaintFontWeight(env, gameUI.paintTextReference, true);
         jstring levelHeader = env->NewStringUTF("SELECT LEVEL");
@@ -387,21 +369,17 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         env->DeleteLocalRef(levelHeader);
         setPaintFontWeight(env, gameUI.paintTextReference, false);
 
-        // Matrix Config Layout Metrics
-        float boxSize = gameUI.screenWidth * 0.25f; // Extra-large box layout scale to exactly fit 3 blocks per horizontal sweep
+        float boxSize = gameUI.screenWidth * 0.25f;
         float spaceGrid = gameUI.screenWidth * 0.045f;
         float offsetGridX = (gameUI.screenWidth - (3 * boxSize + 2 * spaceGrid)) / 2.0f;
         float offsetGridY = 140.0f;
 
         int nextAdIndex = getNextUnlockableLevel();
-        
-        // Total rows computation for 50 indexes = 17 rows total
         int totalRows = (int)std::ceil(50.0f / 3.0f);
         float totalContentHeight = totalRows * (boxSize + spaceGrid) + 160.0f;
         gameUI.maxScrollExtent = totalContentHeight - (footerY - offsetGridY);
         if (gameUI.maxScrollExtent < 0.0f) gameUI.maxScrollExtent = 0.0f;
 
-        // Apply Local Layer Scissor Mask bounds clipping to grid allocations dynamically
         env->CallIntMethod(canvas, gameUI.midSave);
         
         for (int i = 0; i < 50; i++) {
@@ -410,7 +388,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             float bx = offsetGridX + col * (boxSize + spaceGrid);
             float by = offsetGridY + row * (boxSize + spaceGrid) + gameUI.levelScrollOffset;
 
-            // Performance Layer Skip Culling bounds check
             if (by + boxSize < offsetGridY || by > footerY) continue;
 
             drawRealShadowRoundRect(env, canvas, bx, by, bx + boxSize, by + boxSize, 24, 24);
@@ -433,11 +410,9 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
                 setPaintFontWeight(env, gameUI.paintTextReference, false);
             }
 
-            // Scroll position offset adjusted interaction bindings mapping
             gameUI.UIButtons.push_back({bx, by, boxSize, boxSize, 3000 + i, i});
         }
 
-        // Bottom Grid Complete All Button placement tracking matrix bounds
         float completeBtnY = offsetGridY + totalRows * (boxSize + spaceGrid) + gameUI.levelScrollOffset + 20.0f;
         if (completeBtnY + 85.0f > offsetGridY && completeBtnY < footerY) {
             float cW = gameUI.screenWidth * 0.75f;
@@ -446,7 +421,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             drawRoundRectNative(env, canvas, cX, completeBtnY, cX + cW, completeBtnY + 85.0f, 20, 20, 0xFF34C759);
 
             jstring completeTxt = env->NewStringUTF("COMPLETE ALL LEVELS");
-            env->CallVoidMethod(canvas, gameUI.midDrawText, completeTxt, cX + 75.0f, completeBtnY + 58.0f, gameUI.paintTextReference);
+            env->CallVoidMethod(canvas, completeTxt, cX + 75.0f, completeBtnY + 58.0f, gameUI.paintTextReference);
             env->DeleteLocalRef(completeTxt);
 
             gameUI.UIButtons.push_back({cX, completeBtnY, cW, 85.0f, 3500, 0});
@@ -455,7 +430,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         env->CallVoidMethod(canvas, gameUI.midRestore);
     }
 
-    // --- STATE: GAMEPLAY ACTION LAYER GRID SCENARIO ---
     if (gameUI.currentState == STATE_GAMEPLAY) {
         float headerIconSize = gameUI.screenWidth * 0.11f;
         float baseIconY = 55.0f;
@@ -469,12 +443,10 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({gameUI.screenWidth - headerIconSize - 40.0f, baseIconY, headerIconSize, headerIconSize, 4003, 0});
         }
 
-        // Procedural Interactive gameplay Dot Matrix (50 dots array block)
         float dotPlayAreaTop = 200.0f;
         float dotPlayAreaBottom = footerY - 40.0f;
         float dotFieldH = dotPlayAreaBottom - dotPlayAreaTop;
         
-        // Setup Grid allocation parameters: 5 rows of 10 points = 50 structural dots
         int dotRows = 5;
         int dotCols = 10;
         float spacingRow = dotFieldH / (dotRows + 1);
@@ -500,17 +472,15 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         gameUI.UIButtons.push_back({gameUI.screenWidth * 0.25f, gameUI.screenHeight * 0.80f, gameUI.screenWidth * 0.5f, 80.0f, 4001, 0});
     }
 
-    // --- STATE: SETTINGS PANEL SECTION ---
     if (gameUI.currentState == STATE_SETTINGS) {
         float itemRowY = gameUI.screenHeight * 0.12f;
-        float itemRowH = 160.0f; // Expanded structural height to fit secondary info string components smoothly
+        float itemRowH = 160.0f; 
         float itemRowW = gameUI.screenWidth * 0.92f;
         float itemRowX = (gameUI.screenWidth - itemRowW) / 2.0f;
 
         jclass paintCls = env->GetObjectClass(gameUI.paintShapeReference);
         jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
 
-        // Row 1: Theme Manager Option
         jstring tText = env->NewStringUTF("Theme Selection");
         env->CallVoidMethod(canvas, gameUI.midDrawText, tText, itemRowX + 15.0f, itemRowY + 65.0f, gameUI.paintTextReference);
         env->DeleteLocalRef(tText);
@@ -532,7 +502,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         env->CallVoidMethod(gameUI.paintShapeReference, setColor, gameUI.isCurrentlyDark ? 0xFF2C2C2E : 0xFFE5E5EA);
         env->CallVoidMethod(canvas, gameUI.midDrawLine, itemRowX, itemRowY + itemRowH, itemRowX + itemRowW, itemRowY + itemRowH, gameUI.paintShapeReference);
 
-        // Row 2: Privacy Policy Options
         itemRowY += itemRowH;
         jstring pText = env->NewStringUTF("Privacy Policy");
         env->CallVoidMethod(canvas, gameUI.midDrawText, pText, itemRowX + 15.0f, itemRowY + 65.0f, gameUI.paintTextReference);
@@ -554,7 +523,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
 
         env->CallVoidMethod(canvas, gameUI.midDrawLine, itemRowX, itemRowY + itemRowH, itemRowX + itemRowW, itemRowY + itemRowH, gameUI.paintShapeReference);
 
-        // Row 3: Share Application Option (Equal structural image sizing)
         itemRowY += itemRowH;
         jstring sText = env->NewStringUTF("Share Our App");
         env->CallVoidMethod(canvas, gameUI.midDrawText, sText, itemRowX + 15.0f, itemRowY + 65.0f, gameUI.paintTextReference);
@@ -579,7 +547,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
 
         env->CallVoidMethod(canvas, gameUI.midDrawLine, itemRowX, itemRowY + itemRowH, itemRowX + itemRowW, itemRowY + itemRowH, gameUI.paintShapeReference);
 
-        // Row 4: Rate Application Option (Expanded star configuration match)
         itemRowY += itemRowH;
         jstring rText = env->NewStringUTF("Rate Our App");
         env->CallVoidMethod(canvas, gameUI.midDrawText, rText, itemRowX + 15.0f, itemRowY + 65.0f, gameUI.paintTextReference);
@@ -598,20 +565,16 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             env->CallVoidMethod(gameUI.paintTextReference, setCol, baseTxtColor);
         }
         if (gameUI.assetBitmaps[ASSET_STAR]) {
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_STAR], itemRowX + itemRowW - 95, itemRowY + 45, 70.0f, tintActive); // Equal Large 70px scale
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_STAR], itemRowX + itemRowW - 95, itemRowY + 45, 70.0f, tintActive);
         }
         gameUI.UIButtons.push_back({itemRowX, itemRowY, itemRowW, itemRowH, 6504, 0});
     }
 
-    // ========================================================
-    // --- MODAL POPUPS BLUR DECOR SYSTEM ---
-    // ========================================================
     bool activeModalBlocks = (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive || gameUI.isPausePopupActive);
 
     if (activeModalBlocks) {
         drawRoundRectNative(env, canvas, 0, 0, gameUI.screenWidth, gameUI.screenHeight, 0, 0, 0x66000000);
 
-        // Universal Uniform Compact Dimensions Base Config
         float dW = gameUI.screenWidth * 0.76f;
         float dH = gameUI.screenHeight * 0.32f;
         float dX = (gameUI.screenWidth - dW) / 2.0f;
@@ -626,7 +589,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
 
         drawRoundRectNative(env, canvas, dX, dY, dX + dW, dY + dH, 36, 36, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFFFFFFF);
 
-        // Uniform Large Professional Close Button Component across dialog surfaces
         float uniformCloseSize = 75.0f; 
         float uniformCloseX = dX + dW - uniformCloseSize - 30.0f;
         float uniformCloseY = dY + 30.0f;
@@ -636,7 +598,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({uniformCloseX - 10, uniformCloseY - 10, uniformCloseSize + 20, uniformCloseSize + 20, 9999, 0});
         }
 
-        // --- POPUP CASE 1: PROFESSIONAL HINT DIALOG ---
         if (gameUI.isHintPopupActive) {
             setPaintFontWeight(env, gameUI.paintTextReference, true);
             jstring hMsg = env->NewStringUTF("Need hint?");
@@ -644,18 +605,15 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             env->DeleteLocalRef(hMsg);
             setPaintFontWeight(env, gameUI.paintTextReference, false);
 
-            float buttonHeight = 105.0f; // Increased button height parameters
+            float buttonHeight = 105.0f;
             float bW = dW * 0.85f;
             float bX = dX + (dW - bW) / 2.0f;
             float bY = dY + dH - buttonHeight - 40.0f;
 
             drawRoundRectNative(env, canvas, bX, bY, bX + bW, bY + buttonHeight, 20, 20, 0xFF007AFF);
 
-            // Exactly Centered Compound Graphic Placement Layout
             float innerIconW = 50.0f;
             float compoundSpacing = 20.0f;
-            
-            // Calculate total width of graphic + string combo
             float totalCompoundWidth = innerIconW + compoundSpacing + 200.0f; 
             float targetStartContentX = bX + (bW - totalCompoundWidth) / 2.0f;
 
@@ -679,7 +637,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({bX, bY, bW, buttonHeight, 8801, 0});
         }
 
-        // --- POPUP CASE 2: THEME SELECT MATRIX ---
         if (gameUI.isThemePopupActive) {
             jstring popTitle = env->NewStringUTF("Choose Theme Mode");
             env->CallVoidMethod(canvas, gameUI.midDrawText, popTitle, dX + 45.0f, dY + 80.0f, gameUI.paintTextReference);
@@ -709,8 +666,8 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
                 jmethodID setCol = env->GetMethodID(paintCls, "setColor", "(I)V");
                 env->CallVoidMethod(gameUI.paintTextReference, setCol, baseTxtColor);
             }
-       }
-        // --- POPUP CASE 3: PROFESSIONAL 5-STAR RATING DIALOG ---
+        }
+
         if (gameUI.isRatingPopupActive) {
             setPaintFontWeight(env, gameUI.paintTextReference, true);
             jstring rHead = env->NewStringUTF("Please rate our app");
@@ -718,7 +675,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             env->DeleteLocalRef(rHead);
             setPaintFontWeight(env, gameUI.paintTextReference, false);
 
-            // Render matching large 70px scale stars centered on dialog panel
             float starSize = 70.0f; 
             float starSpacerX = 12.0f;
             float starStartX = dX + (dW - (5 * starSize + 4 * starSpacerX)) / 2.0f;
@@ -755,14 +711,12 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({subX, subY, subW, subH, 7899, 0});
         }
 
-        // --- POPUP CASE 4: PAUSE OVERLAY DISPLAY (No index numbering elements) ---
         if (gameUI.isPausePopupActive) {
             float listY = dY + 45.0f;
             float elementH = 95.0f;
             float elementW = dW * 0.88f;
             float elementX = dX + (dW - elementW) / 2.0f;
 
-            // Row 1: Resume Play Option
             if (gameUI.assetBitmaps[ASSET_PLAY]) {
                 renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PLAY], elementX + 35, listY + 15, 65.0f, tintActive);
             }
@@ -771,7 +725,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             env->DeleteLocalRef(rsm);
             gameUI.UIButtons.push_back({elementX, listY, elementW, elementH, 5501, 0});
 
-            // Row 2: Retry Option
             listY += elementH;
             if (gameUI.assetBitmaps[ASSET_RETRY]) {
                 renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_RETRY], elementX + 35, listY + 15, 65.0f, tintActive);
@@ -781,7 +734,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             env->DeleteLocalRef(rtr);
             gameUI.UIButtons.push_back({elementX, listY, elementW, elementH, 5502, 0});
 
-            // Row 3: Sound Switch Manager
             listY += elementH;
             int sndIndex = gameUI.audioEnabled ? ASSET_SOUND_ON : ASSET_SOUND_OFF;
             if (gameUI.assetBitmaps[sndIndex]) {
@@ -793,7 +745,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             env->DeleteLocalRef(jAudioL);
             gameUI.UIButtons.push_back({elementX, listY, elementW, elementH, 5503, 0});
 
-            // Row 4: Home Redirection Option
             listY += elementH;
             if (gameUI.assetBitmaps[ASSET_HOME]) {
                 renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HOME], elementX + 35, listY + 15, 65.0f, tintActive);
@@ -815,7 +766,6 @@ Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject 
     for (const auto& btn : gameUI.UIButtons) {
         if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
             
-            // Universal Tap to Close any active modal instantly
             if (btn.actionCode == 9999) { 
                 gameUI.isHintPopupActive = false;
                 gameUI.isThemePopupActive = false;
@@ -860,7 +810,6 @@ Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject 
 
             if (blockingPopup) return; 
 
-            // Grid Level index interactions selection logic
             if (btn.actionCode >= 3000 && btn.actionCode <= 3049) {
                 int lvlIdx = btn.levelValue;
                 int nextIdx = getNextUnlockableLevel();
@@ -877,7 +826,7 @@ Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject 
                 case 9002: gameUI.currentState = STATE_LEVELS; break;
                 case 9003: gameUI.currentState = STATE_SETTINGS; break;
                 case 2001: gameUI.currentState = STATE_GAMEPLAY; break;
-                case 2010: { // Purchase Trigger logic endpoint for Remove Ads component
+                case 2010: { 
                     jclass actCls = env->GetObjectClass(obj);
                     jmethodID purchaseMid = env->GetMethodID(actCls, "dispatchRemoveAdsPurchase", "()V");
                     if (purchaseMid) env->CallVoidMethod(obj, purchaseMid);
