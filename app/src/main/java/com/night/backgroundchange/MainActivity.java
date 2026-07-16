@@ -11,10 +11,12 @@ import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Paint;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.view.View;
+import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 public class MainActivity extends AppCompatActivity {
@@ -37,25 +39,22 @@ public class MainActivity extends AppCompatActivity {
         setContentView(gameView);
     }
 
-    // Dynamic pixel inversion coloring filter generator
     public Paint getTintedPaint(int colorHex) {
         Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
         int r = (colorHex >> 16) & 0xFF;
         int g = (colorHex >> 8) & 0xFF;
         int b = colorHex & 0xFF;
 
-        float[] inversionMatrix = new float[]{
+        float[] matrix = new float[]{
                 0, 0, 0, 0, r,
                 0, 0, 0, 0, g,
                 0, 0, 0, 0, b,
                 0, 0, 0, 1, 0
         };
-        ColorFilter filter = new ColorMatrixColorFilter(inversionMatrix);
-        paint.setColorFilter(filter);
+        paint.setColorFilter(new ColorMatrixColorFilter(matrix));
         return paint;
     }
 
-    // Native loop callback mechanism to reinitialize engine components
     public void triggerThemeRebuild() {
         runOnUiThread(() -> {
             boolean isSystemDark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) 
@@ -64,60 +63,69 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // Intent engine method to launch default browser endpoints for Privacy Policies
     public void dispatchPrivacyPolicyIntent() {
         try {
-            Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com"));
-            startActivity(intent);
+            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com")));
         } catch (Exception e) {
-            android.util.Log.e("IntentDispatcher", "Privacy Policy target failure");
+            android.util.Log.e("Launcher", "Privacy redirection error");
         }
     }
 
-    // Intent engine method to broadcast generic system action shares
     public void dispatchShareIntent() {
         try {
             Intent intent = new Intent(Intent.ACTION_SEND);
             intent.setType("text/plain");
-            intent.putExtra(Intent.EXTRA_TEXT, "Check out this awesome game: Run Arrow!");
-            startActivity(Intent.createChooser(intent, "Share Via"));
+            intent.putExtra(Intent.EXTRA_TEXT, "Play Run Arrow Game!");
+            startActivity(Intent.createChooser(intent, "Share Using"));
         } catch (Exception e) {
-            android.util.Log.e("IntentDispatcher", "System Share broadcast failure");
+            android.util.Log.e("Launcher", "Share payload broadcast error");
         }
+    }
+
+    public void dispatchRemoveAdsPurchase() {
+        runOnUiThread(() -> {
+            Toast.makeText(this, "Connecting to Billing Sandbox...", Toast.LENGTH_SHORT).show();
+        });
     }
 
     class StructuralGameView extends SurfaceView implements SurfaceHolder.Callback, Runnable {
         private Thread renderThread;
         private volatile boolean isRunning;
         private final SurfaceHolder surfaceHolder;
+        private final GestureDetector gestureDetector;
 
         public StructuralGameView(Context context) {
             super(context);
             surfaceHolder = getHolder();
             surfaceHolder.addCallback(this);
 
+            gestureDetector = new GestureDetector(context, new GestureDetector.SimpleOnGestureListener() {
+                @Override
+                public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
+                    nativeApplyScroll(-distanceY); // Dispatches precise scrolling values down to C++ layer
+                    return true;
+                }
+            });
+
             boolean isSystemDark = (getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK) 
                     == Configuration.UI_MODE_NIGHT_YES;
             initNativeEngine(isSystemDark);
 
-            // Resource mapping matrices
-            int[] structuralDrawableIds = {
+            int[] drawables = {
                 R.drawable.arrow, R.drawable.tile, R.drawable.glow, R.drawable.back,
                 R.drawable.home, R.drawable.retry, R.drawable.next, R.drawable.play,
                 R.drawable.paused, R.drawable.settings, R.drawable.sound_on,
                 R.drawable.soundoff, R.drawable.tick, R.drawable.star,
                 R.drawable.hint, R.drawable.close, R.drawable.lock, R.drawable.share,
-                R.drawable.level, R.drawable.watchads
+                R.drawable.level, R.drawable.watchads, R.drawable.removads
             };
 
-            for (int i = 0; i < structuralDrawableIds.length; i++) {
+            for (int i = 0; i < drawables.length; i++) {
                 try {
-                    Bitmap bmp = BitmapFactory.decodeResource(getResources(), structuralDrawableIds[i]);
-                    if (bmp != null) {
-                        nativePushAsset(i, bmp);
-                    }
+                    Bitmap bmp = BitmapFactory.decodeResource(getResources(), drawables[i]);
+                    if (bmp != null) nativePushAsset(i, bmp);
                 } catch (Exception e) {
-                    android.util.Log.e("UIStructure", "Failed loading index: " + i);
+                    android.util.Log.e("ResourceLoader", "Failed parsing bitmap array index: " + i);
                 }
             }
         }
@@ -148,6 +156,7 @@ public class MainActivity extends AppCompatActivity {
 
         @Override
         public boolean onTouchEvent(MotionEvent event) {
+            gestureDetector.onTouchEvent(event);
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
                 nativeOnTouch(event.getX(), event.getY());
             }
@@ -175,4 +184,5 @@ public class MainActivity extends AppCompatActivity {
     public native void nativeRender(Canvas canvas);
     public native void nativeOnTouch(float x, float y);
     public native void nativeOnResize(int w, int h);
+    public native void nativeApplyScroll(float deltaY);
 }
