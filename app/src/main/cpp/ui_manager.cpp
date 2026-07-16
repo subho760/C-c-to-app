@@ -1,7 +1,5 @@
 #include "game_structures.h"
-#include <android/log.h>
 
-// Fix #6: Heading Layout Fix ("RUN ARROW" centered header with integrated vertical Arrow 'A')
 void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, int baseTxtColor, jobject tintRed) {
     setPaintFontWeight(env, gameUI.paintTextReference, true);
     if (gameUI.paintTextReference) {
@@ -13,12 +11,10 @@ void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, i
     float midPointX = gameUI.screenWidth / 2.0f;
     float fixedHeaderY = 150.0f;
 
-    // Split render anchors to center position text
     jstring titleR = env->NewStringUTF("RUN   RROW");
     env->CallVoidMethod(canvas, gameUI.midDrawText, titleR, midPointX - 250.0f, fixedHeaderY, gameUI.paintTextReference);
     env->DeleteLocalRef(titleR);
 
-    // Render replacement directional arrow asset where the letter 'A' sits
     float headerArrowSize = 85.0f;
     float headerArrowX = midPointX + 18.0f;
     float headerArrowY = fixedHeaderY - 72.0f;
@@ -28,14 +24,12 @@ void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, i
         jmethodID midRotate = env->GetMethodID(canvasCls, "rotate", "(FFF)V");
         
         env->CallIntMethod(canvas, gameUI.midSave);
-        // Rotate asset 270 degrees to make it point cleanly upward
         if (midRotate) env->CallVoidMethod(canvas, midRotate, 270.0f, headerArrowX + (headerArrowSize / 2.0f), headerArrowY + (headerArrowSize / 2.0f));
         renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], headerArrowX, headerArrowY, headerArrowSize, tintRed);
         env->CallVoidMethod(canvas, gameUI.midRestore);
     }
 }
 
-// Fix #5: Large, 90° Anticlockwise Rotated Light Gray Watermark
 void drawWatermark(JNIEnv* env, jobject canvas) {
     if (!gameUI.paintTextReference) return;
     
@@ -45,7 +39,6 @@ void drawWatermark(JNIEnv* env, jobject canvas) {
     
     env->CallIntMethod(canvas, gameUI.midSave);
     
-    // Set text parameters to a soft, light gray color mask
     env->CallVoidMethod(gameUI.paintTextReference, setColor, gameUI.isCurrentlyDark ? 0x1AFFFFFF : 0x11000000);
     env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 120.0f);
     setPaintFontWeight(env, gameUI.paintTextReference, true);
@@ -54,7 +47,6 @@ void drawWatermark(JNIEnv* env, jobject canvas) {
     jclass canvasCls = env->GetObjectClass(canvas);
     jmethodID midRotate = env->GetMethodID(canvasCls, "rotate", "(FFF)V");
     
-    // Rotate 90 degrees anticlockwise around layout boundaries
     if (midRotate) env->CallVoidMethod(canvas, midRotate, -90.0f, gameUI.screenWidth / 2.0f, gameUI.screenHeight / 2.0f);
     
     env->CallVoidMethod(canvas, gameUI.midDrawText, wmString, gameUI.screenWidth * 0.15f, gameUI.screenHeight / 2.0f, gameUI.paintTextReference);
@@ -63,36 +55,29 @@ void drawWatermark(JNIEnv* env, jobject canvas) {
     env->CallVoidMethod(canvas, gameUI.midRestore);
 }
 
-// Fix #4: Aspect-Ratio Locked Square Horizontal Gameplay Pause Container
 void drawHorizontalPausePopup(JNIEnv* env, jobject canvas, float dX, float dY, float dW, float dH, jobject tintActive) {
-    // Dynamically lock proportions so Width matches Height exactly (Square structure)
     float forcedSquareDim = dW > dH ? dH : dW;
     float squareLeft = dX + (dW - forcedSquareDim) / 2.0f;
     float squareTop = dY + (dH - forcedSquareDim) / 2.0f;
 
-    // Draw clean background square box container without text items
     drawRoundRectNative(env, canvas, squareLeft, squareTop, squareLeft + forcedSquareDim, squareTop + forcedSquareDim, 36, 36, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFFFFFFF);
 
-    // Arrange elements horizontally inside the container
     float buttonSize = forcedSquareDim * 0.20f; 
     float innerSpacingY = squareTop + (forcedSquareDim / 2.0f) - (buttonSize / 2.0f);
     float itemHorizontalStep = forcedSquareDim / 4.0f;
 
-    // Item 1: Large Play Icon
     float btn1X = squareLeft + itemHorizontalStep - (buttonSize / 2.0f);
     if (gameUI.assetBitmaps[ASSET_PLAY]) {
         renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PLAY], btn1X, innerSpacingY, buttonSize, tintActive);
     }
     gameUI.UIButtons.push_back({btn1X, innerSpacingY, buttonSize, buttonSize, 5501, 0});
 
-    // Item 2: Large Retry Icon
     float btn2X = squareLeft + (itemHorizontalStep * 2.0f) - (buttonSize / 2.0f);
     if (gameUI.assetBitmaps[ASSET_RETRY]) {
         renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_RETRY], btn2X, innerSpacingY, buttonSize, tintActive);
     }
     gameUI.UIButtons.push_back({btn2X, innerSpacingY, buttonSize, buttonSize, 5502, 0});
 
-    // Item 3: Large Home/Menu Icon
     float btn3X = squareLeft + (itemHorizontalStep * 3.0f) - (buttonSize / 2.0f);
     if (gameUI.assetBitmaps[ASSET_HOME]) {
         renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HOME], btn3X, innerSpacingY, buttonSize, tintActive);
@@ -100,7 +85,6 @@ void drawHorizontalPausePopup(JNIEnv* env, jobject canvas, float dX, float dY, f
     gameUI.UIButtons.push_back({btn3X, innerSpacingY, buttonSize, buttonSize, 5504, 0});
 }
 
-// Fix #1: Global Close Target Engine Interface Layer
 void checkGlobalClosePopupDismiss(float touchX, float touchY) {
     bool activePopup = (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive);
     if (!activePopup) return;
@@ -110,11 +94,10 @@ void checkGlobalClosePopupDismiss(float touchX, float touchY) {
     float dX = (gameUI.screenWidth - dW) / 2.0f;
     float dY = (gameUI.screenHeight - dH) / 2.0f;
 
-    float uniformCloseSize = 120.0f; // Enlarged touch target box footprint
+    float uniformCloseSize = 120.0f; 
     float uniformCloseX = dX + dW - uniformCloseSize - 10.0f;
     float uniformCloseY = dY + 10.0f;
 
-    // If a touch falls anywhere inside the clean bounds, close the active screen layer smoothly
     if (touchX >= uniformCloseX && touchX <= (uniformCloseX + uniformCloseSize) &&
         touchY >= uniformCloseY && touchY <= (uniformCloseY + uniformCloseSize)) {
         gameUI.isHintPopupActive = false;
@@ -139,22 +122,17 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
 
     jobject tintActive = getTintPaint(env, obj, activeSelectionColor);
     jobject tintGray = getTintPaint(env, obj, unselectedGrayColor);
-    jobject tintYellow = getTintPaint(env, obj, 0xFFFFCC00);
     jobject tintRed = getTintPaint(env, obj, 0xFFFF3B30);
 
-    // Fix #7: Header and Footer Layout Configuration Anchors
     float headerFixedBarHeight = 180.0f;
     float footerFixedBarHeight = 200.0f;
     float footerStartY = gameUI.screenHeight - footerFixedBarHeight;
 
-    // Draw the continuous background watermark pattern layer beneath elements
     drawWatermark(env, canvas);
 
     if (gameUI.currentState == STATE_HOME) {
-        // Fix #6: Render Heading Layout Block
         drawGameHeader(env, obj, canvas, baseBgColor, baseTxtColor, tintRed);
 
-        // Position the dynamic header ad button
         float removeAdsX = gameUI.screenWidth - 140.0f;
         float removeAdsY = 65.0f;
         if (gameUI.assetBitmaps[ASSET_REMOVE_ADS]) {
@@ -162,7 +140,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({removeAdsX, removeAdsY, 90.0f, 90.0f, 2010, 0});
         }
 
-        // Fix #2: Scaled Play Button Layout Modification (Reduced by 25% cleanly)
         float originalPlayWidth = gameUI.screenWidth * 0.45f;
         float scaledPlayWidth = originalPlayWidth * 0.75f;
         float playX = (gameUI.screenWidth / 2.0f) - (scaledPlayWidth / 2.0f);
@@ -175,7 +152,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     }
 
     if (gameUI.currentState == STATE_LEVELS) {
-        // Render Fixed Page Header Label Layer above content views
         drawRoundRectNative(env, canvas, 0, 0, gameUI.screenWidth, headerFixedBarHeight, 0, 0, baseBgColor);
         setPaintFontWeight(env, gameUI.paintTextReference, true);
         jstring levelHeader = env->NewStringUTF("SELECT LEVEL");
@@ -192,7 +168,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         gameUI.maxScrollExtent = totalContentHeight - (footerStartY - headerFixedBarHeight);
         if (gameUI.maxScrollExtent < 0.0f) gameUI.maxScrollExtent = 0.0f;
 
-        // Fix #7: Clip the scrolling layout grid between header and footer boundaries
         env->CallIntMethod(canvas, gameUI.midSave);
         
         for (int i = 0; i < 50; i++) {
@@ -201,7 +176,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             float bx = offsetGridX + col * (boxSize + spaceGrid);
             float by = headerFixedBarHeight + 30.0f + row * (boxSize + spaceGrid) + gameUI.levelScrollOffset;
 
-            // Cull offscreen components outside the scrolling bounds layout frame
             if (by + boxSize < headerFixedBarHeight || by > footerStartY) continue;
 
             drawRealShadowRoundRect(env, canvas, bx, by, bx + boxSize, by + boxSize, 24, 24);
@@ -236,7 +210,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         }
     }
 
-    // Fix #7: Render the Fixed Navigation Footer Panel Layer cleanly over content lists
     if (gameUI.currentState == STATE_HOME || gameUI.currentState == STATE_SETTINGS || gameUI.currentState == STATE_LEVELS) {
         drawRoundRectNative(env, canvas, 0, footerStartY, gameUI.screenWidth, gameUI.screenHeight, 0, 0, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFF8F9FA);
 
@@ -258,7 +231,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         }
     }
 
-    // Overlay Popup Modal Rendering Engines
     bool activeModalBlocks = (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive || gameUI.isPausePopupActive);
 
     if (activeModalBlocks) {
@@ -269,14 +241,11 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         float dX = (gameUI.screenWidth - dW) / 2.0f;
         float dY = (gameUI.screenHeight - dH) / 2.0f;
 
-        // Fix #4: Forward Pause Popup structural measurements directly into specialized layout systems
         if (gameUI.isPausePopupActive) {
             drawHorizontalPausePopup(env, canvas, dX, dY, dW, gameUI.screenHeight * 0.44f, tintActive);
         } else {
-            // Standard Popup Container Box Model UI Render Core logic
             drawRoundRectNative(env, canvas, dX, dY, dX + dW, dY + dH, 36, 36, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFFFFFFF);
 
-            // Fix #1: Clean top-right integrated closing target item asset configuration
             float uniformCloseSize = 75.0f; 
             float uniformCloseX = dX + dW - uniformCloseSize - 30.0f;
             float uniformCloseY = dY + 30.0f;
