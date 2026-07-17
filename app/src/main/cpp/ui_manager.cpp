@@ -151,19 +151,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     // Safety Padding Adjustment: Shift footer up by 80px to accommodate native banner configurations cleanly
     float footerStartY = gameUI.screenHeight - footerFixedBarHeight - 80.0f;
 
-    // Intercept touch input updates for local star calculations safely
-    if (gameUI.isRatingPopupActive && gameUI.touchPressed && gameUI.touchActionUp) {
-        for (size_t b = 0; b < gameUI.UIButtons.size(); b++) {
-            auto& btn = gameUI.UIButtons[b];
-            if (btn.btnID >= 8001 && btn.btnID <= 8005) {
-                if (gameUI.touchX >= btn.x && gameUI.touchX <= (btn.x + btn.w) &&
-                    gameUI.touchY >= btn.y && gameUI.touchY <= (btn.y + btn.h)) {
-                    nativeRatingScore = (btn.btnID - 8000);
-                }
-            }
-        }
-    }
-
     // --- 1. HOME SCREEN ---
     if (gameUI.currentState == STATE_HOME) {
         drawGameHeader(env, obj, canvas, baseBgColor, baseTxtColor, tintRed);
