@@ -1,23 +1,33 @@
 #include "game_structures.h"
 
 void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, int baseTxtColor, jobject tintRed) {
+    if (!gameUI.paintTextReference) return;
+    
     setPaintFontWeight(env, gameUI.paintTextReference, true);
-    if (gameUI.paintTextReference) {
-        jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
-        jmethodID setTextSize = env->GetMethodID(paintCls, "setTextSize", "(F)V");
-        env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 85.0f);
-    }
+    jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
+    jmethodID setTextSize = env->GetMethodID(paintCls, "setTextSize", "(F)V");
+    jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
+    
+    // Make text scale cleanly down (From 85.0f to 65.0f)
+    env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 65.0f);
+    env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
 
     float midPointX = gameUI.screenWidth / 2.0f;
-    float fixedHeaderY = 150.0f;
+    float fixedHeaderY = 130.0f;
 
-    jstring titleR = env->NewStringUTF("RUN   RROW");
-    env->CallVoidMethod(canvas, gameUI.midDrawText, titleR, midPointX - 250.0f, fixedHeaderY, gameUI.paintTextReference);
-    env->DeleteLocalRef(titleR);
+    // Center "RUN ARROW" as a single unified text string cleanly
+    jstring titleText = env->NewStringUTF("RUN ARROW");
+    jmethodID measureText = env->GetMethodID(paintCls, "measureText", "(Ljava/lang/String;)F");
+    float textWidth = env->CallFloatMethod(gameUI.paintTextReference, measureText, titleText);
+    float startTextX = midPointX - (textWidth / 2.0f);
 
-    float headerArrowSize = 85.0f;
-    float headerArrowX = midPointX + 18.0f;
-    float headerArrowY = fixedHeaderY - 72.0f;
+    env->CallVoidMethod(canvas, gameUI.midDrawText, titleText, startTextX, fixedHeaderY, gameUI.paintTextReference);
+    env->DeleteLocalRef(titleText);
+
+    // Place the indicator arrow cleanly right before the letter "R" in "RUN"
+    float headerArrowSize = 55.0f; // Scale down from 85.0f
+    float headerArrowX = startTextX - headerArrowSize - 15.0f;
+    float headerArrowY = fixedHeaderY - 50.0f;
 
     if (gameUI.assetBitmaps[ASSET_ARROW]) {
         jclass canvasCls = env->GetObjectClass(canvas);
@@ -31,28 +41,7 @@ void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, i
 }
 
 void drawWatermark(JNIEnv* env, jobject canvas) {
-    if (!gameUI.paintTextReference) return;
-    
-    jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
-    jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
-    jmethodID setTextSize = env->GetMethodID(paintCls, "setTextSize", "(F)V");
-    
-    env->CallIntMethod(canvas, gameUI.midSave);
-    
-    env->CallVoidMethod(gameUI.paintTextReference, setColor, gameUI.isCurrentlyDark ? 0x1AFFFFFF : 0x11000000);
-    env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 120.0f);
-    setPaintFontWeight(env, gameUI.paintTextReference, true);
-
-    jstring wmString = env->NewStringUTF("RUN ARROW ENGINE");
-    jclass canvasCls = env->GetObjectClass(canvas);
-    jmethodID midRotate = env->GetMethodID(canvasCls, "rotate", "(FFF)V");
-    
-    if (midRotate) env->CallVoidMethod(canvas, midRotate, -90.0f, gameUI.screenWidth / 2.0f, gameUI.screenHeight / 2.0f);
-    
-    env->CallVoidMethod(canvas, gameUI.midDrawText, wmString, gameUI.screenWidth * 0.15f, gameUI.screenHeight / 2.0f, gameUI.paintTextReference);
-    
-    env->DeleteLocalRef(wmString);
-    env->CallVoidMethod(canvas, gameUI.midRestore);
+    // Watermark removed to keep your screen entirely clean!
 }
 
 void drawHorizontalPausePopup(JNIEnv* env, jobject canvas, float dX, float dY, float dW, float dH, jobject tintActive) {
@@ -62,7 +51,7 @@ void drawHorizontalPausePopup(JNIEnv* env, jobject canvas, float dX, float dY, f
 
     drawRoundRectNative(env, canvas, squareLeft, squareTop, squareLeft + forcedSquareDim, squareTop + forcedSquareDim, 36, 36, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFFFFFFF);
 
-    float buttonSize = forcedSquareDim * 0.20f; 
+    float buttonSize = forcedSquareDim * 0.16f; 
     float innerSpacingY = squareTop + (forcedSquareDim / 2.0f) - (buttonSize / 2.0f);
     float itemHorizontalStep = forcedSquareDim / 4.0f;
 
@@ -94,9 +83,9 @@ void checkGlobalClosePopupDismiss(float touchX, float touchY) {
     float dX = (gameUI.screenWidth - dW) / 2.0f;
     float dY = (gameUI.screenHeight - dH) / 2.0f;
 
-    float uniformCloseSize = 120.0f; 
-    float uniformCloseX = dX + dW - uniformCloseSize - 10.0f;
-    float uniformCloseY = dY + 10.0f;
+    float uniformCloseSize = 90.0f; 
+    float uniformCloseX = dX + dW - uniformCloseSize - 20.0f;
+    float uniformCloseY = dY + 20.0f;
 
     if (touchX >= uniformCloseX && touchX <= (uniformCloseX + uniformCloseSize) &&
         touchY >= uniformCloseY && touchY <= (uniformCloseY + uniformCloseSize)) {
@@ -124,47 +113,39 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     jobject tintGray = getTintPaint(env, obj, unselectedGrayColor);
     jobject tintRed = getTintPaint(env, obj, 0xFFFF3B30);
 
-    float headerFixedBarHeight = 180.0f;
-    float footerFixedBarHeight = 200.0f;
+    float headerFixedBarHeight = 160.0f;
+    float footerFixedBarHeight = 160.0f;
     float footerStartY = gameUI.screenHeight - footerFixedBarHeight;
 
-    drawWatermark(env, canvas);
-
+    // --- 1. RENDER MAIN VIEWS ---
     if (gameUI.currentState == STATE_HOME) {
         drawGameHeader(env, obj, canvas, baseBgColor, baseTxtColor, tintRed);
 
-        float removeAdsX = gameUI.screenWidth - 140.0f;
-        float removeAdsY = 65.0f;
+        float removeAdsX = gameUI.screenWidth - 110.0f;
+        float removeAdsY = 50.0f;
         if (gameUI.assetBitmaps[ASSET_REMOVE_ADS]) {
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_REMOVE_ADS], removeAdsX, removeAdsY, 90.0f, tintActive);
-            gameUI.UIButtons.push_back({removeAdsX, removeAdsY, 90.0f, 90.0f, 2010, 0});
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_REMOVE_ADS], removeAdsX, removeAdsY, 70.0f, tintActive);
+            gameUI.UIButtons.push_back({removeAdsX, removeAdsY, 70.0f, 70.0f, 2010, 0});
         }
 
-        float originalPlayWidth = gameUI.screenWidth * 0.45f;
-        float scaledPlayWidth = originalPlayWidth * 0.75f;
-        float playX = (gameUI.screenWidth / 2.0f) - (scaledPlayWidth / 2.0f);
-        float playY = gameUI.screenHeight * 0.48f;
+        // Reduced scaling size on Play button so it isn't huge
+        float originalPlayWidth = gameUI.screenWidth * 0.32f;
+        float playX = (gameUI.screenWidth / 2.0f) - (originalPlayWidth / 2.0f);
+        float playY = gameUI.screenHeight * 0.44f;
         
         if (gameUI.assetBitmaps[ASSET_PLAY]) {
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PLAY], playX, playY, scaledPlayWidth, tintActive);
-            gameUI.UIButtons.push_back({playX, playY, scaledPlayWidth, scaledPlayWidth, 2001, 0});
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PLAY], playX, playY, originalPlayWidth, tintActive);
+            gameUI.UIButtons.push_back({playX, playY, originalPlayWidth, originalPlayWidth, 2001, 0});
         }
     }
 
     if (gameUI.currentState == STATE_LEVELS) {
-        drawRoundRectNative(env, canvas, 0, 0, gameUI.screenWidth, headerFixedBarHeight, 0, 0, baseBgColor);
-        setPaintFontWeight(env, gameUI.paintTextReference, true);
-        jstring levelHeader = env->NewStringUTF("SELECT LEVEL");
-        env->CallVoidMethod(canvas, gameUI.midDrawText, levelHeader, (jfloat)(gameUI.screenWidth * 0.32f), 110.0f, gameUI.paintTextReference);
-        env->DeleteLocalRef(levelHeader);
-        setPaintFontWeight(env, gameUI.paintTextReference, false);
-
-        float boxSize = gameUI.screenWidth * 0.25f;
-        float spaceGrid = gameUI.screenWidth * 0.045f;
+        float boxSize = gameUI.screenWidth * 0.24f;
+        float spaceGrid = gameUI.screenWidth * 0.04f;
         float offsetGridX = (gameUI.screenWidth - (3 * boxSize + 2 * spaceGrid)) / 2.0f;
         
         int totalRows = (int)std::ceil(50.0f / 3.0f);
-        float totalContentHeight = totalRows * (boxSize + spaceGrid) + 100.0f;
+        float totalContentHeight = totalRows * (boxSize + spaceGrid) + 60.0f;
         gameUI.maxScrollExtent = totalContentHeight - (footerStartY - headerFixedBarHeight);
         if (gameUI.maxScrollExtent < 0.0f) gameUI.maxScrollExtent = 0.0f;
 
@@ -174,23 +155,29 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             int row = i / 3;
             int col = i % 3;
             float bx = offsetGridX + col * (boxSize + spaceGrid);
-            float by = headerFixedBarHeight + 30.0f + row * (boxSize + spaceGrid) + gameUI.levelScrollOffset;
+            float by = headerFixedBarHeight + 20.0f + row * (boxSize + spaceGrid) + gameUI.levelScrollOffset;
 
+            // Strict visual filtering block: Do not draw outside header and footer bar
             if (by + boxSize < headerFixedBarHeight || by > footerStartY) continue;
 
-            drawRealShadowRoundRect(env, canvas, bx, by, bx + boxSize, by + boxSize, 24, 24);
+            drawRealShadowRoundRect(env, canvas, bx, by, bx + boxSize, by + boxSize, 20, 20);
             int finalBoxColor = gameUI.levelsUnlocked[i] ? 0xFF007AFF : 0xFFD3D3D3;
-            drawRoundRectNative(env, canvas, bx, by, bx + boxSize, by + boxSize, 24, 24, finalBoxColor);
+            drawRoundRectNative(env, canvas, bx, by, bx + boxSize, by + boxSize, 20, 20, finalBoxColor);
 
             if (!gameUI.levelsUnlocked[i]) {
                 if (gameUI.assetBitmaps[ASSET_LOCK]) {
-                    renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LOCK], bx + (boxSize * 0.28f), by + (boxSize * 0.28f), boxSize * 0.44f, tintActive);
+                    renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LOCK], bx + (boxSize * 0.30f), by + (boxSize * 0.30f), boxSize * 0.40f, tintActive);
                 }
             } else {
                 setPaintFontWeight(env, gameUI.paintTextReference, true);
+                if (gameUI.paintTextReference) {
+                    jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
+                    jmethodID setTextSize = env->GetMethodID(paintCls, "setTextSize", "(F)V");
+                    env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 40.0f);
+                }
                 std::string numLvl = std::to_string(i + 1);
                 jstring jNumL = env->NewStringUTF(numLvl.c_str());
-                env->CallVoidMethod(canvas, gameUI.midDrawText, jNumL, bx + (boxSize * 0.36f), by + (boxSize * 0.60f), gameUI.paintTextReference);
+                env->CallVoidMethod(canvas, gameUI.midDrawText, jNumL, bx + (boxSize * 0.38f), by + (boxSize * 0.62f), gameUI.paintTextReference);
                 env->DeleteLocalRef(jNumL);
                 setPaintFontWeight(env, gameUI.paintTextReference, false);
             }
@@ -198,11 +185,30 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({bx, by, boxSize, boxSize, 3000 + i, i});
         }
         env->CallVoidMethod(canvas, gameUI.midRestore);
+
+        // --- FIXED TOP HEADER BAR FOR SELECT LEVEL PAGE ---
+        drawRoundRectNative(env, canvas, 0, 0, gameUI.screenWidth, headerFixedBarHeight, 0, 0, baseBgColor);
+        setPaintFontWeight(env, gameUI.paintTextReference, true);
+        if (gameUI.paintTextReference) {
+            jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
+            jmethodID setTextSize = env->GetMethodID(paintCls, "setTextSize", "(F)V");
+            env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 55.0f);
+        }
+        
+        jstring levelHeader = env->NewStringUTF("SELECT LEVEL");
+        jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
+        jmethodID measureText = env->GetMethodID(paintCls, "measureText", "(Ljava/lang/String;)F");
+        float headerTextW = env->CallFloatMethod(gameUI.paintTextReference, measureText, levelHeader);
+        float centeredHeaderX = (gameUI.screenWidth / 2.0f) - (headerTextW / 2.0f);
+        
+        env->CallVoidMethod(canvas, gameUI.midDrawText, levelHeader, centeredHeaderX, 105.0f, gameUI.paintTextReference);
+        env->DeleteLocalRef(levelHeader);
+        setPaintFontWeight(env, gameUI.paintTextReference, false);
     }
 
     if (gameUI.currentState == STATE_GAMEPLAY) {
-        float headerIconSize = gameUI.screenWidth * 0.11f;
-        float baseIconY = 45.0f;
+        float headerIconSize = gameUI.screenWidth * 0.09f;
+        float baseIconY = 35.0f;
 
         if (gameUI.assetBitmaps[ASSET_PAUSED]) {
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PAUSED], 40.0f, baseIconY, headerIconSize, tintGray);
@@ -210,27 +216,42 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         }
     }
 
+    // --- 2. FIXED FOOTER AND NAVIGATION ARCHITECTURE ---
     if (gameUI.currentState == STATE_HOME || gameUI.currentState == STATE_SETTINGS || gameUI.currentState == STATE_LEVELS) {
         drawRoundRectNative(env, canvas, 0, footerStartY, gameUI.screenWidth, gameUI.screenHeight, 0, 0, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFF8F9FA);
 
-        float navIconSize = gameUI.screenWidth * 0.11f;
-        float paddingEdge = 65.0f;
+        float navIconSize = 65.0f; // Scale down navbar icons cleanly
         float innerSpaceY = footerStartY + (footerFixedBarHeight / 2.0f) - (navIconSize / 2.0f);
+        
+        // 3-Column Navigation layout step coordinates
+        float sectionStep = gameUI.screenWidth / 3.0f;
 
+        // Position 1: Home Button
         if (gameUI.assetBitmaps[ASSET_HOME]) {
             jobject homePaint = (gameUI.currentState == STATE_HOME) ? tintActive : tintGray;
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HOME], paddingEdge, innerSpaceY, navIconSize, homePaint);
-            gameUI.UIButtons.push_back({paddingEdge, innerSpaceY, navIconSize, navIconSize, 9001, 0});
+            float homeX = (sectionStep * 0.5f) - (navIconSize / 2.0f);
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HOME], homeX, innerSpaceY, navIconSize, homePaint);
+            gameUI.UIButtons.push_back({homeX, innerSpaceY, navIconSize, navIconSize, 9001, 0});
         }
 
+        // Position 2: Levels Selection Button
         if (gameUI.assetBitmaps[ASSET_LEVEL]) {
             jobject lvlPaint = (gameUI.currentState == STATE_LEVELS) ? tintActive : tintGray;
-            float centerLvlX = (gameUI.screenWidth / 2.0f) - (navIconSize / 2.0f);
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LEVEL], centerLvlX, innerSpaceY, navIconSize, lvlPaint);
-            gameUI.UIButtons.push_back({centerLvlX, innerSpaceY, navIconSize, navIconSize, 9002, 0});
+            float lvlX = (sectionStep * 1.5f) - (navIconSize / 2.0f);
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LEVEL], lvlX, innerSpaceY, navIconSize, lvlPaint);
+            gameUI.UIButtons.push_back({lvlX, innerSpaceY, navIconSize, navIconSize, 9002, 0});
+        }
+
+        // Position 3: Dynamic Settings Configuration Button Layout Added!
+        if (gameUI.assetBitmaps[ASSET_SETTINGS]) {
+            jobject setPaint = (gameUI.currentState == STATE_SETTINGS) ? tintActive : tintGray;
+            float setX = (sectionStep * 2.5f) - (navIconSize / 2.0f);
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_SETTINGS], setX, innerSpaceY, navIconSize, setPaint);
+            gameUI.UIButtons.push_back({setX, innerSpaceY, navIconSize, navIconSize, 9003, 0});
         }
     }
 
+    // --- 3. DIALOG OVERLAY POPUPS ---
     bool activeModalBlocks = (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive || gameUI.isPausePopupActive);
 
     if (activeModalBlocks) {
@@ -246,9 +267,9 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         } else {
             drawRoundRectNative(env, canvas, dX, dY, dX + dW, dY + dH, 36, 36, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFFFFFFF);
 
-            float uniformCloseSize = 75.0f; 
-            float uniformCloseX = dX + dW - uniformCloseSize - 30.0f;
-            float uniformCloseY = dY + 30.0f;
+            float uniformCloseSize = 60.0f; 
+            float uniformCloseX = dX + dW - uniformCloseSize - 25.0f;
+            float uniformCloseY = dY + 25.0f;
 
             if (gameUI.assetBitmaps[ASSET_CLOSE]) {
                 renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_CLOSE], uniformCloseX, uniformCloseY, uniformCloseSize, tintActive);
