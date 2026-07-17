@@ -115,7 +115,8 @@ Java_com_night_backgroundchange_MainActivity_initNativeEngine(JNIEnv* env, jobje
         env->DeleteLocalRef(shapePaint);
     }
 
-    gameUI.engineInitialized = true;
+        gameUI.engineInitialized = true;
+    gameUI.currentState = STATE_HOME;
 }
 
 JNIEXPORT void JNICALL
