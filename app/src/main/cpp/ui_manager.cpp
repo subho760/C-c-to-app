@@ -2,8 +2,9 @@
 #include <cmath>
 #include <string>
 
-// Safe local tracker for star selections since it's not in the shared header struct
-static int nativeRatingScore = 0;
+// Safe local trackers for runtime dynamic features
+static int nativeRatingScore = 4; // Default visual preview for star selection
+static float gameplayZoomScale = 1.0f; // Zoom scale factor for gameplay field
 
 // Helper to draw clean rounded buttons
 void drawDialogButton(JNIEnv* env, jobject canvas, float x, float y, float w, float h, const char* label, int bgColor, int textColor) {
@@ -71,11 +72,6 @@ void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, i
     setPaintFontWeight(env, gameUI.paintTextReference, false);
 }
 
-// Watermark entirely dropped as per instructions
-void drawWatermark(JNIEnv* env, jobject canvas) {
-    // Watermark removed completely
-}
-
 void drawHorizontalPausePopup(JNIEnv* env, jobject canvas, float dX, float dY, float dW, float dH, jobject tintActive) {
     float forcedSquareDim = dW > dH ? dH : dW;
     float squareLeft = dX + (dW - forcedSquareDim) / 2.0f;
@@ -106,26 +102,6 @@ void drawHorizontalPausePopup(JNIEnv* env, jobject canvas, float dX, float dY, f
     gameUI.UIButtons.push_back({btn3X, innerSpacingY, buttonSize, buttonSize, 5504, 0});
 }
 
-void checkGlobalClosePopupDismiss(float touchX, float touchY) {
-    if (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive) {
-        float dW = gameUI.screenWidth * 0.80f;
-        float dH = gameUI.screenHeight * 0.42f; 
-        float dX = (gameUI.screenWidth - dW) / 2.0f;
-        float dY = (gameUI.screenHeight - dH) / 2.0f;
-
-        float uniformCloseSize = 60.0f; 
-        float uniformCloseX = dX + dW - uniformCloseSize - 20.0f;
-        float uniformCloseY = dY + 20.0f;
-
-        if (touchX >= uniformCloseX && touchX <= (uniformCloseX + uniformCloseSize) &&
-            touchY >= uniformCloseY && touchY <= (uniformCloseY + uniformCloseSize)) {
-            gameUI.isHintPopupActive = false;
-            gameUI.isThemePopupActive = false;
-            gameUI.isRatingPopupActive = false;
-        }
-    }
-}
-
 extern "C" {
 
 JNIEXPORT void JNICALL
@@ -147,9 +123,31 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
 
     float headerFixedBarHeight = 160.0f;
     float footerFixedBarHeight = 160.0f;
-    
-    // Safety Padding Adjustment: Shift footer up by 80px to accommodate native banner configurations cleanly
     float footerStartY = gameUI.screenHeight - footerFixedBarHeight - 80.0f;
+
+    // --- 0. LOADING SCREEN ---
+    if (gameUI.currentState == STATE_LOADING) {
+        if (gameUI.paintTextReference) {
+            setPaintFontWeight(env, gameUI.paintTextReference, true);
+            jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
+            jmethodID setTextSize = env->GetMethodID(paintCls, "setTextSize", "(F)V");
+            jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
+            jmethodID measureText = env->GetMethodID(paintCls, "measureText", "(Ljava/lang/String;)F");
+
+            env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 50.0f);
+            env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
+
+            jstring loadStr = env->NewStringUTF("Loading...");
+            float strW = env->CallFloatMethod(gameUI.paintTextReference, measureText, loadStr);
+            
+            float lx = (gameUI.screenWidth - strW) / 2.0f;
+            float ly = gameUI.screenHeight / 2.0f;
+            env->CallVoidMethod(canvas, gameUI.midDrawText, loadStr, lx, ly, gameUI.paintTextReference);
+            env->DeleteLocalRef(loadStr);
+            setPaintFontWeight(env, gameUI.paintTextReference, false);
+        }
+        return;
+    }
 
     // --- 1. HOME SCREEN ---
     if (gameUI.currentState == STATE_HOME) {
@@ -162,13 +160,15 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({removeAdsX, removeAdsY, 70.0f, 70.0f, 2010, 0});
         }
 
-        float originalPlayWidth = gameUI.screenWidth * 0.32f;
-        float playX = (gameUI.screenWidth / 2.0f) - (originalPlayWidth / 2.0f);
-        float playY = gameUI.screenHeight * 0.44f;
+        // Rescaled and shifted down cleanly between mid point and footer configuration limits
+        float scaledPlayWidth = gameUI.screenWidth * 0.24f; 
+        float playX = (gameUI.screenWidth / 2.0f) - (scaledPlayWidth / 2.0f);
+        float centerY = gameUI.screenHeight / 2.0f;
+        float playY = centerY + ((footerStartY - centerY) / 2.0f) - (scaledPlayWidth / 2.0f);
         
         if (gameUI.assetBitmaps[ASSET_PLAY]) {
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PLAY], playX, playY, originalPlayWidth, tintActive);
-            gameUI.UIButtons.push_back({playX, playY, originalPlayWidth, originalPlayWidth, 2001, 0});
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PLAY], playX, playY, scaledPlayWidth, tintActive);
+            gameUI.UIButtons.push_back({playX, playY, scaledPlayWidth, scaledPlayWidth, 2001, 0});
         }
     }
 
@@ -179,17 +179,24 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         float offsetGridX = (gameUI.screenWidth - (3 * boxSize + 2 * spaceGrid)) / 2.0f;
         
         int totalRows = (int)std::ceil(50.0f / 3.0f);
-        float totalContentHeight = totalRows * (boxSize + spaceGrid) + 60.0f;
+        float extensionButtonHeight = 90.0f;
+        float totalContentHeight = totalRows * (boxSize + spaceGrid) + extensionButtonHeight + 120.0f;
         gameUI.maxScrollExtent = totalContentHeight - (footerStartY - headerFixedBarHeight);
         if (gameUI.maxScrollExtent < 0.0f) gameUI.maxScrollExtent = 0.0f;
 
         env->CallIntMethod(canvas, gameUI.midSave);
         
+        float lastRowBottomY = 0.0f;
         for (int i = 0; i < 50; i++) {
             int row = i / 3;
             int col = i % 3;
             float bx = offsetGridX + col * (boxSize + spaceGrid);
             float by = headerFixedBarHeight + 20.0f + row * (boxSize + spaceGrid) + gameUI.levelScrollOffset;
+            
+            float currentBottom = by + boxSize;
+            if (currentBottom > lastRowBottomY) {
+                lastRowBottomY = currentBottom;
+            }
 
             if (by + boxSize < headerFixedBarHeight || by > footerStartY) continue;
 
@@ -218,6 +225,15 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             int interactionCode = gameUI.levelsUnlocked[i] ? (3000 + i) : 4150; 
             gameUI.UIButtons.push_back({bx, by, boxSize, boxSize, interactionCode, i});
         }
+
+        // Render "Complete all levels to open more" dynamic button directly beneath the matrix
+        float extensionY = lastRowBottomY + 40.0f;
+        if (extensionY + extensionButtonHeight >= headerFixedBarHeight && extensionY <= footerStartY) {
+            float extW = gameUI.screenWidth - (2.0f * offsetGridX);
+            drawDialogButton(env, canvas, offsetGridX, extensionY, extW, extensionButtonHeight, "Complete all levels to open more", 0xFF34C759, 0xFFFFFFFF);
+            gameUI.UIButtons.push_back({offsetGridX, extensionY, extW, extensionButtonHeight, 3999, 0});
+        }
+
         env->CallVoidMethod(canvas, gameUI.midRestore);
 
         // Fixed Top Header Panel
@@ -267,8 +283,9 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             int rowColor = gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFF1F3F5;
             drawRoundRectNative(env, canvas, marginX, optionY, marginX + rowWidth, optionY + optionHeight, 18, 18, rowColor);
 
-            if (i == 1 && gameUI.assetBitmaps[ASSET_RETRY]) { 
-                renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_RETRY], marginX + 25.0f, optionY + 30.0f, 50.0f, tintYellow);
+            // Mismatched icons fixed here as requested
+            if (i == 1 && gameUI.assetBitmaps[ASSET_HINT]) { 
+                renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HINT], marginX + 25.0f, optionY + 30.0f, 50.0f, tintYellow);
             } else if (i == 2 && gameUI.assetBitmaps[ASSET_LEVEL]) {
                 renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LEVEL], marginX + 25.0f, optionY + 30.0f, 50.0f, tintActive);
             }
@@ -329,6 +346,11 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             setPaintFontWeight(env, gameUI.paintTextReference, false);
         }
 
+        // Interactive Matrix Field rendering with Zoom canvas scale mapping bounds applied directly
+        env->CallIntMethod(canvas, gameUI.midSave);
+        jmethodID midScale = env->GetMethodID(env->GetObjectClass(canvas), "scale", "(FFFF)V");
+        env->CallVoidMethod(canvas, midScale, gameplayZoomScale, gameplayZoomScale, gameUI.screenWidth / 2.0f, gameUI.screenHeight / 2.0f);
+
         int gridColumns = 5;
         int gridRows = 10;
         
@@ -369,23 +391,28 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         jmethodID setStrokeWidth = env->GetMethodID(paintClass, "setStrokeWidth", "(F)V");
         env->CallVoidMethod(linePaint, setPaintColorMethod, 0xFFFF3B30); 
         env->CallVoidMethod(linePaint, setStrokeWidth, 6.0f);
-        
         jmethodID midDrawLine = env->GetMethodID(env->GetObjectClass(canvas), "drawLine", "(FFFFLandroid/graphics/Paint;)V");
-        env->CallVoidMethod(canvas, midDrawLine, nodeCoordinatesX[0], nodeCoordinatesY[0], nodeCoordinatesX[49], nodeCoordinatesY[49], linePaint);
+
+        // Orthogonal Connection Correction: Form straight axis paths lines instead of diagonal cuts
+        float nodeStartX = nodeCoordinatesX[0];
+        float nodeStartY = nodeCoordinatesY[0];
+        float nodeEndX = nodeCoordinatesX[49];
+        float nodeEndY = nodeCoordinatesY[49];
+
+        // Draw horizontal portion then turn vertical to stay square on alignment grids
+        env->CallVoidMethod(canvas, midDrawLine, nodeStartX, nodeStartY, nodeEndX, nodeStartY, linePaint);
+        env->CallVoidMethod(canvas, midDrawLine, nodeEndX, nodeStartY, nodeEndX, nodeEndY, linePaint);
 
         if (gameUI.assetBitmaps[ASSET_ARROW]) {
-            float fX = nodeCoordinatesX[0];
-            float fY = nodeCoordinatesY[0];
-            float lX = nodeCoordinatesX[49];
-            float lY = nodeCoordinatesY[49];
-            float targetAngleDeg = std::atan2(lY - fY, lX - fX) * 180.0f / M_PI;
-
+            // Draw regular pointing track marker at destination endpoint
             env->CallIntMethod(canvas, gameUI.midSave);
             jmethodID midRotate = env->GetMethodID(env->GetObjectClass(canvas), "rotate", "(FFF)V");
-            env->CallVoidMethod(canvas, midRotate, targetAngleDeg + 90.0f, fX, fY);
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], fX - 25.0f, fY, 50.0f, tintRed);
+            env->CallVoidMethod(canvas, midRotate, 180.0f, nodeEndX, nodeEndY);
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], nodeEndX - 25.0f, nodeEndY - 25.0f, 50.0f, tintRed);
             env->CallVoidMethod(canvas, gameUI.midRestore);
         }
+
+        env->CallVoidMethod(canvas, gameUI.midRestore); // End Zoom Canvas Mapping Context Safely
 
         env->DeleteLocalRef(dotPaint);
         env->DeleteLocalRef(linePaint);
@@ -448,7 +475,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({closeX - 10.0f, closeY - 10.0f, closeBtnSize + 20.0f, closeBtnSize + 20.0f, 9999, 0});
         }
 
-        // A. PLAY STORE RATING POPUP OVERLAY
         if (gameUI.isRatingPopupActive) { 
             if (paintCls && setTextSize && setColor && measureText) {
                 setPaintFontWeight(env, gameUI.paintTextReference, true);
@@ -485,7 +511,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({actionX, actionY, actionBtnW, actionBtnH, 8500, 0}); 
         }
 
-        // B. NEED HELP / LEVEL HINT OVERLAY DIALOG
         if (gameUI.isHintPopupActive) {
             if (paintCls && setTextSize && setColor && measureText) {
                 setPaintFontWeight(env, gameUI.paintTextReference, true);
@@ -518,7 +543,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({actX, actY, actBtnW, actBtnH, 4003, 0});
         }
 
-        // C. COMPACT CHANGE THEME MODAL
         if (gameUI.isThemePopupActive) {
             if (paintCls && setTextSize && setColor && measureText) {
                 setPaintFontWeight(env, gameUI.paintTextReference, true);
@@ -545,10 +569,17 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({btnDarkX, rowY, colW, colH, 7700, 0});
         }
 
-        // D. PAUSE DIALOG SYSTEM
         if (gameUI.isPausePopupActive) {
             drawHorizontalPausePopup(env, canvas, dX, dY, dW, gameUI.screenHeight * 0.44f, tintActive);
         }
+    }
+}
+
+// Global invocation pointer for real-time gameplay interaction scale factors
+JNIEXPORT void JNICALL
+Java_com_night_backgroundchange_MainActivity_setGameplayZoomFactor(JNIEnv* env, jobject obj, jfloat scaleFactor) {
+    if (scaleFactor >= 0.5f && scaleFactor <= 2.5f) {
+        gameplayZoomScale = scaleFactor;
     }
 }
 
