@@ -19,7 +19,7 @@ void drawDialogButton(JNIEnv* env, jobject canvas, float x, float y, float w, fl
         float textW = env->CallFloatMethod(gameUI.paintTextReference, measureText, jText);
         
         float tx = x + (w - textW) / 2.0f;
-        float ty = y + (h / 2.0f) + 11.0f; // vertical alignment correction
+        float ty = y + (h / 2.0f) + 11.0f; 
         env->CallVoidMethod(canvas, gameUI.midDrawText, jText, tx, ty, gameUI.paintTextReference);
         env->DeleteLocalRef(jText);
         setPaintFontWeight(env, gameUI.paintTextReference, false);
@@ -48,23 +48,18 @@ void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, i
     float runWidth = env->CallFloatMethod(gameUI.paintTextReference, measureText, runStr);
     float rrowWidth = env->CallFloatMethod(gameUI.paintTextReference, measureText, rrowStr);
     
-    // Size of the Arrow graphic acting as the letter 'A'
     float inlineArrowSize = 50.0f;
     float totalHeaderWidth = runWidth + inlineArrowSize + rrowWidth + 10.0f;
-    
     float startX = midPointX - (totalHeaderWidth / 2.0f);
 
-    // Draw "RUN "
     env->CallVoidMethod(canvas, gameUI.midDrawText, runStr, startX, fixedHeaderY, gameUI.paintTextReference);
 
-    // Draw the Red Arrow pointing Up (acting as the 'A')
     float arrowX = startX + runWidth;
     float arrowY = fixedHeaderY - 48.0f;
     if (gameUI.assetBitmaps[ASSET_ARROW]) {
         renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], arrowX, arrowY, inlineArrowSize, tintRed);
     }
 
-    // Draw "RROW" immediately after
     float rrowX = arrowX + inlineArrowSize + 10.0f;
     env->CallVoidMethod(canvas, gameUI.midDrawText, rrowStr, rrowX, fixedHeaderY, gameUI.paintTextReference);
 
@@ -73,8 +68,24 @@ void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, i
     setPaintFontWeight(env, gameUI.paintTextReference, false);
 }
 
+// Re-added background arrow watermark layout pattern covering the center frame safely
 void drawWatermark(JNIEnv* env, jobject canvas) {
-    // Watermark removed
+    if (gameUI.assetBitmaps[ASSET_ARROW]) {
+        // Render a large, faded background watermark in the center of the playground layout
+        jclass paintCls = env->FindClass("android/graphics/Paint");
+        jmethodID paintInit = env->GetMethodID(paintCls, "<init>", "()V");
+        jobject watermarkPaint = env->NewObject(paintCls, paintInit);
+        jmethodID setAlpha = env->GetMethodID(paintCls, "setAlpha", "(I)V");
+        env->CallVoidMethod(watermarkPaint, setAlpha, 30); // Low opacity overlay (approx 12%)
+
+        float watermarkSize = gameUI.screenWidth * 0.55f;
+        float wx = (gameUI.screenWidth - watermarkSize) / 2.0f;
+        float wy = (gameUI.screenHeight - watermarkSize) / 2.0f;
+        
+        renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], wx, wy, watermarkSize, watermarkPaint);
+        env->DeleteLocalRef(watermarkPaint);
+        env->DeleteLocalRef(paintCls);
+    }
 }
 
 void drawHorizontalPausePopup(JNIEnv* env, jobject canvas, float dX, float dY, float dW, float dH, jobject tintActive) {
@@ -213,6 +224,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
                 setPaintFontWeight(env, gameUI.paintTextReference, false);
             }
 
+            // Tapping on any locked item instantly calls code 3500 which unlocks ALL levels now!
             int interactionCode = gameUI.levelsUnlocked[i] ? (3000 + i) : 3500;
             gameUI.UIButtons.push_back({bx, by, boxSize, boxSize, interactionCode, i});
         }
@@ -258,8 +270,9 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         float marginX = 40.0f;
         float rowWidth = gameUI.screenWidth - (2 * marginX);
 
+        // Option 2 (Rate My App) now triggers the Ad pop-up ("isRatingPopupActive") instead of opening a direct link
         const char* optionsNames[] = {"Change Theme", "Rate My App", "Share My App", "Privacy Policy"};
-        int optionActions[] = {6501, 6504, 6503, 6502};
+        int optionActions[] = {6501, 3555, 6503, 6502}; // Action 3555 activates ad dialog context
 
         for (int i = 0; i < 4; i++) {
             int rowColor = gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFF1F3F5;
@@ -284,6 +297,9 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
 
     // --- 4. GAMEPLAY PLAYGROUND SCREEN ---
     if (gameUI.currentState == STATE_GAMEPLAY) {
+        // Render the requested arrow watermark backdrop layers safely inside the grid playing boundary
+        drawWatermark(env, canvas);
+
         float headerIconSize = 65.0f;
         float baseIconY = 45.0f;
 
@@ -318,6 +334,67 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             env->CallVoidMethod(canvas, gameUI.midDrawText, jBanner, bannerX, 105.0f, gameUI.paintTextReference);
             env->DeleteLocalRef(jBanner);
             setPaintFontWeight(env, gameUI.paintTextReference, false);
+        }
+
+        // --- GENERATE GAMEPLAY MATRIX (50 DOTS CONFIGURATION GRID) ---
+        int totalDotsCount = 50;
+        int gridColumns = 5;
+        int gridRows = 10; // 5 x 10 = 50 total game node points
+        
+        float startGridY = headerFixedBarHeight + 80.0f;
+        float availableGridHeight = (gameUI.screenHeight - footerFixedBarHeight - 40.0f) - startGridY;
+        float stepX = gameUI.screenWidth / (float)(gridColumns + 1);
+        float stepY = availableGridHeight / (float)(gridRows + 1);
+
+        float nodeCoordinatesX[50];
+        float nodeCoordinatesY[50];
+
+        // Draw the 50 gameplay dots matrix
+        jclass nativePaintClass = env->GetObjectClass(gameUI.paintTextReference);
+        jmethodID midDrawCircle = env->GetMethodID(env->GetObjectClass(canvas), "drawCircle", "(FFFLandroid/graphics/Paint;)V");
+        jmethodID setPaintColor = env->GetMethodID(nativePaintClass, "setColor", "(I)V");
+
+        env->CallVoidMethod(gameUI.paintTextReference, setPaintColor, gameUI.isCurrentlyDark ? 0xFFFFFFFF : 0xFF222222);
+
+        int dotIndex = 0;
+        for (int r = 1; r <= gridRows; r++) {
+            for (int c = 1; c <= gridColumns; c++) {
+                float circleX = c * stepX;
+                float circleY = startGridY + (r * stepY);
+                
+                nodeCoordinatesX[dotIndex] = circleX;
+                nodeCoordinatesY[dotIndex] = circleY;
+
+                env->CallVoidMethod(canvas, midDrawCircle, circleX, circleY, 10.0f, gameUI.paintTextReference);
+                dotIndex++;
+            }
+        }
+
+        // Draw primary overlay arrow matching index 0 (first dot) to index 49 (last dot)
+        if (gameUI.assetBitmaps[ASSET_ARROW]) {
+            float fX = nodeCoordinatesX[0];
+            float fY = nodeCoordinatesY[0];
+            float lX = nodeCoordinatesX[49];
+            float lY = nodeCoordinatesY[49];
+            
+            // Calculate scale constraints and directional target vector angle
+            float deltaX = lX - fX;
+            float deltaY = lY - fY;
+            float lineLength = std::sqrt(deltaX * deltaX + deltaY * deltaY);
+            float targetAngleDeg = std::atan2(deltaY, deltaX) * 180.0f / M_PI;
+
+            env->CallIntMethod(canvas, gameUI.midSave);
+            jmethodID midRotate = env->GetMethodID(env->GetObjectClass(canvas), "rotate", "(FFF)V");
+            env->CallVoidMethod(canvas, midRotate, targetAngleDeg + 90.0f, fX, fY); // Native rotation alignment offset
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], fX - 30.0f, fY, 60.0f, tintRed);
+            env->CallVoidMethod(canvas, gameUI.midRestore);
+
+            // Draw extra gameplay arrows at random locations to make it busy
+            float extraPointsX[] = {nodeCoordinatesX[12], nodeCoordinatesX[23], nodeCoordinatesX[34]};
+            float extraPointsY[] = {nodeCoordinatesY[12], nodeCoordinatesY[23], nodeCoordinatesY[34]};
+            for (int k = 0; k < 3; k++) {
+                renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], extraPointsX[k] - 25.0f, extraPointsY[k] - 25.0f, 50.0f, tintActive);
+            }
         }
     }
 
@@ -377,7 +454,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({closeX - 10.0f, closeY - 10.0f, closeBtnSize + 20.0f, closeBtnSize + 20.0f, 9999, 0});
         }
 
-        // A. LEVEL UNLOCK CONFIRMATION DIALOG
+        // A. LEVEL UNLOCK CONFIRMATION DIALOG (Triggered via Rate option action or locked level)
         if (gameUI.isRatingPopupActive) { 
             if (paintCls) {
                 setPaintFontWeight(env, gameUI.paintTextReference, true);
@@ -407,6 +484,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             if (gameUI.assetBitmaps[ASSET_REMOVE_ADS]) {
                 renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_REMOVE_ADS], actionX + 45.0f, actionY + 22.0f, 40.0f, tintActive);
             }
+            // Triggers code 3500 which performs instant total unlock bypass sequence
             gameUI.UIButtons.push_back({actionX, actionY, actionBtnW, actionBtnH, 3500, 0});
         }
 
@@ -443,7 +521,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({actX, actY, actBtnW, actBtnH, 4003, 0});
         }
 
-        // C. COMPACT CHANGE THEME MODAL
+        // C. INVERTED THEME MODAL (Light button activates dark mode, dark button activates light mode)
         if (gameUI.isThemePopupActive) {
             if (paintCls) {
                 setPaintFontWeight(env, gameUI.paintTextReference, true);
@@ -461,13 +539,15 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             float colH = 90.0f;
             float rowY = dY + dH - colH - 45.0f;
 
+            // Light Button triggers Dark Mode (Action 7701)
             float btnLightX = dX + 30.0f;
             drawDialogButton(env, canvas, btnLightX, rowY, colW, colH, "LIGHT", 0xFFE9ECEF, 0xFF000000);
-            gameUI.UIButtons.push_back({btnLightX, rowY, colW, colH, 7700, 0});
+            gameUI.UIButtons.push_back({btnLightX, rowY, colW, colH, 7701, 0});
 
+            // Dark Button triggers Light Mode (Action 7700)
             float btnDarkX = dX + 40.0f + colW;
             drawDialogButton(env, canvas, btnDarkX, rowY, colW, colH, "DARK", 0xFF212529, 0xFFFFFFFF);
-            gameUI.UIButtons.push_back({btnDarkX, rowY, colW, colH, 7701, 0});
+            gameUI.UIButtons.push_back({btnDarkX, rowY, colW, colH, 7700, 0});
         }
 
         // D. PAUSE DIALOG SYSTEM
