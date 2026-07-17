@@ -2,6 +2,9 @@
 #include <cmath>
 #include <string>
 
+// Safe local tracker for star selections since it's not in the shared header struct
+static int nativeRatingScore = 0;
+
 // Helper to draw clean rounded buttons
 void drawDialogButton(JNIEnv* env, jobject canvas, float x, float y, float w, float h, const char* label, int bgColor, int textColor) {
     drawRoundRectNative(env, canvas, x, y, x + w, y + h, 15, 15, bgColor);
@@ -106,7 +109,7 @@ void drawHorizontalPausePopup(JNIEnv* env, jobject canvas, float dX, float dY, f
 void checkGlobalClosePopupDismiss(float touchX, float touchY) {
     if (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive) {
         float dW = gameUI.screenWidth * 0.80f;
-        float dH = gameUI.screenHeight * 0.42f; // Updated bounds matching new rating popup scale
+        float dH = gameUI.screenHeight * 0.42f; 
         float dX = (gameUI.screenWidth - dW) / 2.0f;
         float dY = (gameUI.screenHeight - dH) / 2.0f;
 
@@ -147,6 +150,19 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     
     // Safety Padding Adjustment: Shift footer up by 80px to accommodate native banner configurations cleanly
     float footerStartY = gameUI.screenHeight - footerFixedBarHeight - 80.0f;
+
+    // Intercept touch input updates for local star calculations safely
+    if (gameUI.isRatingPopupActive && gameUI.touchPressed && gameUI.touchActionUp) {
+        for (size_t b = 0; b < gameUI.UIButtons.size(); b++) {
+            auto& btn = gameUI.UIButtons[b];
+            if (btn.btnID >= 8001 && btn.btnID <= 8005) {
+                if (gameUI.touchX >= btn.x && gameUI.touchX <= (btn.x + btn.w) &&
+                    gameUI.touchY >= btn.y && gameUI.touchY <= (btn.y + btn.h)) {
+                    nativeRatingScore = (btn.btnID - 8000);
+                }
+            }
+        }
+    }
 
     // --- 1. HOME SCREEN ---
     if (gameUI.currentState == STATE_HOME) {
@@ -212,7 +228,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
                 setPaintFontWeight(env, gameUI.paintTextReference, false);
             }
 
-            // Unlocked triggers gameplay state; Locked triggers specific ad popup workflow to unlock ONLY that single index
             int interactionCode = gameUI.levelsUnlocked[i] ? (3000 + i) : 4150; 
             gameUI.UIButtons.push_back({bx, by, boxSize, boxSize, interactionCode, i});
         }
@@ -253,20 +268,19 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         }
 
         float optionY = headerFixedBarHeight + 40.0f;
-        float optionHeight = 110.0f; // Slightly bumped for better icon layout spacing
+        float optionHeight = 110.0f; 
         float optionSpacing = 30.0f;
         float marginX = 40.0f;
         float rowWidth = gameUI.screenWidth - (2 * marginX);
 
         const char* optionsNames[] = {"Change Theme", "Rate My App", "Share My App", "Privacy Policy"};
-        int optionActions[] = {6501, 6504, 6503, 6502}; // 6504 Triggers the updated custom visual Rate Modal dialog layout
+        int optionActions[] = {6501, 6504, 6503, 6502}; 
 
         for (int i = 0; i < 4; i++) {
             int rowColor = gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFF1F3F5;
             drawRoundRectNative(env, canvas, marginX, optionY, marginX + rowWidth, optionY + optionHeight, 18, 18, rowColor);
 
-            // Add dynamic icons to rows (Share PNG / Star PNG)
-            if (i == 1 && gameUI.assetBitmaps[ASSET_RETRY]) { // Reusing Asset slots creatively for styling icons
+            if (i == 1 && gameUI.assetBitmaps[ASSET_RETRY]) { 
                 renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_RETRY], marginX + 25.0f, optionY + 30.0f, 50.0f, tintYellow);
             } else if (i == 2 && gameUI.assetBitmaps[ASSET_LEVEL]) {
                 renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LEVEL], marginX + 25.0f, optionY + 30.0f, 50.0f, tintActive);
@@ -328,7 +342,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             setPaintFontWeight(env, gameUI.paintTextReference, false);
         }
 
-        // --- GENERATE FAINT MATRIX (50 LOW-OPACITY DOTS) ---
         int gridColumns = 5;
         int gridRows = 10;
         
@@ -340,7 +353,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         float nodeCoordinatesX[50];
         float nodeCoordinatesY[50];
 
-        // Instantiate native paint properties dynamically to process low opacity alpha values cleanly
         jclass paintClass = env->FindClass("android/graphics/Paint");
         jmethodID paintInit = env->GetMethodID(paintClass, "<init>", "()V");
         jobject dotPaint = env->NewObject(paintClass, paintInit);
@@ -348,7 +360,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         jmethodID setAlphaMethod = env->GetMethodID(paintClass, "setAlpha", "(I)V");
 
         env->CallVoidMethod(dotPaint, setPaintColorMethod, gameUI.isCurrentlyDark ? 0xFFFFFFFF : 0xFF222222);
-        env->CallVoidMethod(dotPaint, setAlphaMethod, 64); // Low 25% Opacity watermarked style color
+        env->CallVoidMethod(dotPaint, setAlphaMethod, 64); 
 
         jmethodID midDrawCircle = env->GetMethodID(env->GetObjectClass(canvas), "drawCircle", "(FFFLandroid/graphics/Paint;)V");
 
@@ -366,16 +378,14 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             }
         }
 
-        // --- DRAW DIRECT FOLD/LINE VECTOR FROM START DOT [0] TO LAST DOT [49] ---
         jobject linePaint = env->NewObject(paintClass, paintInit);
         jmethodID setStrokeWidth = env->GetMethodID(paintClass, "setStrokeWidth", "(F)V");
-        env->CallVoidMethod(linePaint, setPaintColorMethod, 0xFFFF3B30); // Bright red tracking path vector
+        env->CallVoidMethod(linePaint, setPaintColorMethod, 0xFFFF3B30); 
         env->CallVoidMethod(linePaint, setStrokeWidth, 6.0f);
         
         jmethodID midDrawLine = env->GetMethodID(env->GetObjectClass(canvas), "drawLine", "(FFFFLandroid/graphics/Paint;)V");
         env->CallVoidMethod(canvas, midDrawLine, nodeCoordinatesX[0], nodeCoordinatesY[0], nodeCoordinatesX[49], nodeCoordinatesY[49], linePaint);
 
-        // Draw directional pointer cleanly atop the node path vector tracking configuration
         if (gameUI.assetBitmaps[ASSET_ARROW]) {
             float fX = nodeCoordinatesX[0];
             float fY = nodeCoordinatesY[0];
@@ -387,7 +397,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             jmethodID midRotate = env->GetMethodID(env->GetObjectClass(canvas), "rotate", "(FFF)V");
             env->CallVoidMethod(canvas, midRotate, targetAngleDeg + 90.0f, fX, fY);
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], fX - 25.0f, fY, 50.0f, tintRed);
-            env->CallVoidMethod(canvas, midRestore);
+            env->CallVoidMethod(canvas, gameUI.midRestore);
         }
 
         env->DeleteLocalRef(dotPaint);
@@ -397,7 +407,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
 
     // --- 5. FIXED FOOTER NAVIGATION ARCHITECTURE ---
     if (gameUI.currentState == STATE_HOME || gameUI.currentState == STATE_SETTINGS || gameUI.currentState == STATE_LEVELS) {
-        // Render footer bar background completely aligned with adjusted layout safe zones
         drawRoundRectNative(env, canvas, 0, footerStartY, gameUI.screenWidth, gameUI.screenHeight, 0, 0, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFF8F9FA);
 
         float navIconSize = 65.0f; 
@@ -433,7 +442,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         drawRoundRectNative(env, canvas, 0, 0, gameUI.screenWidth, gameUI.screenHeight, 0, 0, 0x88000000);
 
         float dW = gameUI.screenWidth * 0.84f;
-        float dH = gameUI.screenHeight * 0.44f; // Scale height expanded comfortably to hold multi-star matrices cleanly
+        float dH = gameUI.screenHeight * 0.44f; 
         float dX = (gameUI.screenWidth - dW) / 2.0f;
         float dY = (gameUI.screenHeight - dH) / 2.0f;
 
@@ -441,8 +450,8 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
 
         jclass paintCls = gameUI.paintTextReference ? env->GetObjectClass(gameUI.paintTextReference) : nullptr;
         jmethodID setTextSize = paintCls ? env->GetMethodID(paintCls, "setTextSize", "(F)V") : nullptr;
-        jmethodID setColor = paintCls ? env->GetMethodID(paintCls, "setColor", "(I)V");
-        jmethodID measureText = paintCls ? env->GetMethodID(paintCls, "measureText", "(Ljava/lang/String;)F");
+        jmethodID setColor = paintCls ? env->GetMethodID(paintCls, "setColor", "(I)V") : nullptr;
+        jmethodID measureText = paintCls ? env->GetMethodID(paintCls, "measureText", "(Ljava/lang/String;)F") : nullptr;
 
         float closeBtnSize = 52.0f;
         float closeX = dX + dW - closeBtnSize - 25.0f;
@@ -452,9 +461,9 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({closeX - 10.0f, closeY - 10.0f, closeBtnSize + 20.0f, closeBtnSize + 20.0f, 9999, 0});
         }
 
-        // A. NATIVE DESIGN PLAY STORE RATING POPUP OVERLAY
+        // A. PLAY STORE RATING POPUP OVERLAY
         if (gameUI.isRatingPopupActive) { 
-            if (paintCls) {
+            if (paintCls && setTextSize && setColor && measureText) {
                 setPaintFontWeight(env, gameUI.paintTextReference, true);
                 env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 42.0f);
                 env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
@@ -466,37 +475,32 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
                 setPaintFontWeight(env, gameUI.paintTextReference, false);
             }
 
-            // Draw 5 Large Star Icons aligned horizontally across center
             float starSize = 65.0f;
             float totalStarsWidth = (5 * starSize) + (4 * 20.0f);
             float startStarX = dX + (dW - totalStarsWidth) / 2.0f;
             float starY = dY + 170.0f;
 
-            if (gameUI.assetBitmaps[ASSET_RETRY]) { // Reusing ASSET_RETRY texture layout context as large interactive stars
+            if (gameUI.assetBitmaps[ASSET_RETRY]) { 
                 for (int s = 0; s < 5; s++) {
                     float currentStarX = startStarX + s * (starSize + 20.0f);
-                    // Stars light up bright yellow when active selection matrix index matches
-                    jobject starColorTint = (s < gameUI.currentRatingScore) ? tintYellow : tintGray;
+                    jobject starColorTint = (s < nativeRatingScore) ? tintYellow : tintGray;
                     renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_RETRY], currentStarX, starY, starSize, starColorTint);
-                    
-                    // Input interaction touch zones mapping dynamic star selections (IDs 8001 - 8005)
                     gameUI.UIButtons.push_back({currentStarX, starY, starSize, starSize, 8001 + s, 0});
                 }
             }
 
-            // Render native action Submit button layout below
             float actionBtnW = dW * 0.65f;
             float actionBtnH = 85.0f;
             float actionX = dX + (dW - actionBtnW) / 2.0f;
             float actionY = dY + dH - actionBtnH - 40.0f;
             
             drawDialogButton(env, canvas, actionX, actionY, actionBtnW, actionBtnH, "SUBMIT", 0xFF007AFF, 0xFFFFFFFF);
-            gameUI.UIButtons.push_back({actionX, actionY, actionBtnW, actionBtnH, 8500, 0}); // Button code triggers rating completion processing
+            gameUI.UIButtons.push_back({actionX, actionY, actionBtnW, actionBtnH, 8500, 0}); 
         }
 
         // B. NEED HELP / LEVEL HINT OVERLAY DIALOG
         if (gameUI.isHintPopupActive) {
-            if (paintCls) {
+            if (paintCls && setTextSize && setColor && measureText) {
                 setPaintFontWeight(env, gameUI.paintTextReference, true);
                 env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 38.0f);
                 env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
@@ -527,9 +531,9 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({actX, actY, actBtnW, actBtnH, 4003, 0});
         }
 
-        // C. COMPACT CHANGE THEME MODAL (Light activates Dark Mode / Dark activates Light Mode)
+        // C. COMPACT CHANGE THEME MODAL
         if (gameUI.isThemePopupActive) {
-            if (paintCls) {
+            if (paintCls && setTextSize && setColor && measureText) {
                 setPaintFontWeight(env, gameUI.paintTextReference, true);
                 env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 38.0f);
                 env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
@@ -545,12 +549,10 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             float colH = 90.0f;
             float rowY = dY + dH - colH - 45.0f;
 
-            // Light Button triggers Dark Mode (Action 7701)
             float btnLightX = dX + 30.0f;
             drawDialogButton(env, canvas, btnLightX, rowY, colW, colH, "LIGHT", 0xFFE9ECEF, 0xFF000000);
             gameUI.UIButtons.push_back({btnLightX, rowY, colW, colH, 7701, 0});
 
-            // Dark Button triggers Light Mode (Action 7700)
             float btnDarkX = dX + 40.0f + colW;
             drawDialogButton(env, canvas, btnDarkX, rowY, colW, colH, "DARK", 0xFF212529, 0xFFFFFFFF);
             gameUI.UIButtons.push_back({btnDarkX, rowY, colW, colH, 7700, 0});
