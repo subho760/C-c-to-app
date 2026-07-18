@@ -184,4 +184,6 @@ public class MainActivity extends AppCompatActivity {
     public native void nativeOnTouch(float x, float y);
     public native void nativeOnResize(int w, int h);
     public native void nativeApplyScroll(float deltaY);
+    // Add this line right here:
+    public native void setAdWatchPopupState(boolean isOpen);
 }
