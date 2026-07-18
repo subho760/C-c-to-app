@@ -2,26 +2,35 @@
 #include <cmath>
 #include <string>
 
-// Safe local trackers for runtime dynamic features
-static int nativeRatingScore = 4; // Default visual preview for star selection
-static float gameplayZoomScale = 1.0f; // Zoom scale factor for gameplay field
-static bool localIsAdWatchPopupActive = false; // Local flag to prevent game_structures.h compiler errors
+// Premium Modern UI Palette Constants
+#define COLOR_DARK_BG       0xFF161A23  // Premium deep slate navy
+#define COLOR_LIGHT_BG      0xFFF5F7FA  // Clean crisp off-white
+#define COLOR_DARK_CARD     0xFF222A3A  // Deep card contrast background
+#define COLOR_LIGHT_CARD    0xFFFFFFFF  // Pure white card contrast
+#define COLOR_ACCENT_BLUE   0xFF5773FF  // Vibrant primary blue/violet branding
+#define COLOR_TEXT_MUTED    0xFF7E8B9B  // Sleek secondary placeholder color
 
-// Stub declaration to satisfy linker dependencies found in nativeOnTouch
+static int nativeRatingScore = 4; 
+static float gameplayZoomScale = 1.0f; 
+static bool localIsAdWatchPopupActive = false; 
+
 void checkGlobalClosePopupDismiss(float touchX, float touchY) {
     // Dismiss mechanics managed cleanly inside your touch coordinator pipeline
 }
 
-// Helper to draw clean rounded buttons
+// Upgraded Helper to draw beautiful modern pill/capsule buttons
 void drawDialogButton(JNIEnv* env, jobject canvas, float x, float y, float w, float h, const char* label, int bgColor, int textColor) {
-    drawRoundRectNative(env, canvas, x, y, x + w, y + h, 15, 15, bgColor);
+    // Render perfect smooth capsule styling with dynamic height-based corner radius
+    float cornerRadius = h / 2.0f;
+    drawRoundRectNative(env, canvas, x, y, x + w, y + h, cornerRadius, cornerRadius, bgColor);
+    
     if (gameUI.paintTextReference) {
         setPaintFontWeight(env, gameUI.paintTextReference, true);
         jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
         jmethodID setTextSize = env->GetMethodID(paintCls, "setTextSize", "(F)V");
         jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
         
-        env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 32.0f);
+        env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 34.0f);
         env->CallVoidMethod(gameUI.paintTextReference, setColor, textColor);
         
         jstring jText = env->NewStringUTF(label);
@@ -36,7 +45,7 @@ void drawDialogButton(JNIEnv* env, jobject canvas, float x, float y, float w, fl
     }
 }
 
-// Cleans up headers and replaces the 'A' in Arrow with the red arrow PNG
+// Render clean minimalist branding text alignment matching reference title cards
 void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, int baseTxtColor, jobject tintRed) {
     if (!gameUI.paintTextReference) return;
     
@@ -46,31 +55,28 @@ void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, i
     jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
     jmethodID measureText = env->GetMethodID(paintCls, "measureText", "(Ljava/lang/String;)F");
     
-    env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 65.0f);
+    env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 72.0f);
     env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
 
     float midPointX = gameUI.screenWidth / 2.0f;
-    float fixedHeaderY = 130.0f;
+    float fixedHeaderY = gameUI.screenHeight * 0.52f; // Centered beautifully relative to branding viewports
 
-    jstring runStr = env->NewStringUTF("RUN ");
-    jstring rrowStr = env->NewStringUTF("RROW");
+    jstring runStr = env->NewStringUTF("A");
+    jstring rrowStr = env->NewStringUTF("rrows");
 
     float runWidth = env->CallFloatMethod(gameUI.paintTextReference, measureText, runStr);
     float rrowWidth = env->CallFloatMethod(gameUI.paintTextReference, measureText, rrowStr);
     
-    float inlineArrowSize = 50.0f;
-    float totalHeaderWidth = runWidth + inlineArrowSize + rrowWidth + 10.0f;
+    float inlineArrowSize = 55.0f;
+    float totalHeaderWidth = inlineArrowSize + rrowWidth + 4.0f;
     float startX = midPointX - (totalHeaderWidth / 2.0f);
 
-    env->CallVoidMethod(canvas, gameUI.midDrawText, runStr, startX, fixedHeaderY, gameUI.paintTextReference);
-
-    float arrowX = startX + runWidth;
-    float arrowY = fixedHeaderY - 48.0f;
+    float arrowY = fixedHeaderY - 54.0f;
     if (gameUI.assetBitmaps[ASSET_ARROW]) {
-        renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], arrowX, arrowY, inlineArrowSize, tintRed);
+        renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], startX, arrowY, inlineArrowSize, tintRed);
     }
 
-    float rrowX = arrowX + inlineArrowSize + 10.0f;
+    float rrowX = startX + inlineArrowSize + 4.0f;
     env->CallVoidMethod(canvas, gameUI.midDrawText, rrowStr, rrowX, fixedHeaderY, gameUI.paintTextReference);
 
     env->DeleteLocalRef(runStr);
@@ -83,9 +89,9 @@ void drawHorizontalPausePopup(JNIEnv* env, jobject canvas, float dX, float dY, f
     float squareLeft = dX + (dW - forcedSquareDim) / 2.0f;
     float squareTop = dY + (dH - forcedSquareDim) / 2.0f;
 
-    drawRoundRectNative(env, canvas, squareLeft, squareTop, squareLeft + forcedSquareDim, squareTop + forcedSquareDim, 36, 36, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFFFFFFF);
+    drawRoundRectNative(env, canvas, squareLeft, squareTop, squareLeft + forcedSquareDim, squareTop + forcedSquareDim, 44, 44, gameUI.isCurrentlyDark ? COLOR_DARK_CARD : COLOR_LIGHT_CARD);
 
-    float buttonSize = forcedSquareDim * 0.16f; 
+    float buttonSize = forcedSquareDim * 0.18f; 
     float innerSpacingY = squareTop + (forcedSquareDim / 2.0f) - (buttonSize / 2.0f);
     float itemHorizontalStep = forcedSquareDim / 4.0f;
 
@@ -114,22 +120,23 @@ JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject obj, jobject canvas) {
     if (!canvas || !gameUI.engineInitialized || !gameUI.midDrawColor) return;
 
-    int baseBgColor = gameUI.isCurrentlyDark ? 0xFF121212 : 0xFFFFFFFF;
-    int baseTxtColor = gameUI.isCurrentlyDark ? 0xFFFFFFFF : 0xFF000000;
-    int activeSelectionColor = gameUI.isCurrentlyDark ? 0xFFFFFFFF : 0xFF000000;
-    int unselectedGrayColor = 0xFF7A7A7A;
+    int baseBgColor = gameUI.isCurrentlyDark ? COLOR_DARK_BG : COLOR_LIGHT_BG;
+    int baseCardColor = gameUI.isCurrentlyDark ? COLOR_DARK_CARD : COLOR_LIGHT_CARD;
+    int baseTxtColor = gameUI.isCurrentlyDark ? 0xFFFFFFFF : 0xFF1A1F26;
+    int activeSelectionColor = COLOR_ACCENT_BLUE;
+    int unselectedGrayColor = COLOR_TEXT_MUTED;
 
     env->CallVoidMethod(canvas, gameUI.midDrawColor, baseBgColor);
     gameUI.UIButtons.clear();
 
     jobject tintActive = getTintPaint(env, obj, activeSelectionColor);
     jobject tintGray = getTintPaint(env, obj, unselectedGrayColor);
-    jobject tintRed = getTintPaint(env, obj, 0xFFFF3B30);
+    jobject tintWhite = getTintPaint(env, obj, 0xFFFFFFFF);
     jobject tintYellow = getTintPaint(env, obj, 0xFFFFCC00);
 
     float headerFixedBarHeight = 160.0f;
     float footerFixedBarHeight = 160.0f;
-    float footerStartY = gameUI.screenHeight - footerFixedBarHeight - 80.0f;
+    float footerStartY = gameUI.screenHeight - footerFixedBarHeight - 60.0f;
 
     // --- 0. LOADING SCREEN ---
     if (gameUI.currentState == STATE_LOADING) {
@@ -140,8 +147,8 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
             jmethodID measureText = env->GetMethodID(paintCls, "measureText", "(Ljava/lang/String;)F");
 
-            env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 50.0f);
-            env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
+            env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 45.0f);
+            env->CallVoidMethod(gameUI.paintTextReference, setColor, unselectedGrayColor);
 
             jstring loadStr = env->NewStringUTF("Loading...");
             float strW = env->CallFloatMethod(gameUI.paintTextReference, measureText, loadStr);
@@ -157,39 +164,51 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
 
     // --- 1. HOME SCREEN ---
     if (gameUI.currentState == STATE_HOME) {
-        drawGameHeader(env, obj, canvas, baseBgColor, baseTxtColor, tintRed);
+        // Top System Feature Card Layouts (Leagues / Challenge Lookalike Row)
+        float cardW = (gameUI.screenWidth - 100.0f) / 2.0f;
+        float cardH = 260.0f;
+        float cardY = 120.0f;
 
-        float removeAdsX = gameUI.screenWidth - 110.0f;
-        float removeAdsY = 50.0f;
-        if (gameUI.assetBitmaps[ASSET_REMOVE_ADS]) {
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_REMOVE_ADS], removeAdsX, removeAdsY, 70.0f, tintActive);
-            gameUI.UIButtons.push_back({removeAdsX, removeAdsY, 70.0f, 70.0f, 2010, 0});
+        // Card 1: Leagues stub bounds
+        drawRoundRectNative(env, canvas, 40.0f, cardY, 40.0f + cardW, cardY + cardH, 32, 32, baseCardColor);
+        // Card 2: Challenge stub bounds
+        drawRoundRectNative(env, canvas, gameUI.screenWidth - 40.0f - cardW, cardY, gameUI.screenWidth - 40.0f, cardY + cardH, 32, 32, baseCardColor);
+
+        // Core App Title branding render
+        drawGameHeader(env, obj, canvas, baseBgColor, baseTxtColor, tintWhite);
+
+        // Under-title Level Label Info Text
+        if (gameUI.paintTextReference) {
+            jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
+            jmethodID setTextSize = env->GetMethodID(paintCls, "setTextSize", "(F)V");
+            jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
+            jmethodID measureText = env->GetMethodID(paintCls, "measureText", "(Ljava/lang/String;)F");
+            
+            setPaintFontWeight(env, gameUI.paintTextReference, true);
+            env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 42.0f);
+            env->CallVoidMethod(gameUI.paintTextReference, setColor, COLOR_ACCENT_BLUE);
+            
+            std::string currentLvlInfo = "Level " + std::to_string(gameUI.currentPlayingLevel > 0 ? gameUI.currentPlayingLevel : 1);
+            jstring jLvlStr = env->NewStringUTF(currentLvlInfo.c_str());
+            float lvlW = env->CallFloatMethod(gameUI.paintTextReference, measureText, jLvlStr);
+            env->CallVoidMethod(canvas, gameUI.midDrawText, jLvlStr, (gameUI.screenWidth - lvlW) / 2.0f, (gameUI.screenHeight * 0.52f) + 65.0f, gameUI.paintTextReference);
+            env->DeleteLocalRef(jLvlStr);
+            setPaintFontWeight(env, gameUI.paintTextReference, false);
         }
 
-        // Tactile Wrapped Play Button with Custom Shadow Radius
-        float btnBoxW = gameUI.screenWidth * 0.45f;
-        float btnBoxH = 140.0f;
-        float btnBoxX = (gameUI.screenWidth / 2.0f) - (btnBoxW / 2.0f);
-        float centerY = gameUI.screenHeight / 2.0f;
-        float btnBoxY = centerY + ((footerStartY - centerY) / 2.0f) - (btnBoxH / 2.0f);
+        // Modern Clean Wide Primary Play Capsule Button
+        float playW = gameUI.screenWidth * 0.68f;
+        float playH = 120.0f;
+        float playX = (gameUI.screenWidth - playW) / 2.0f;
+        float playY = footerStartY - 100.0f;
 
-        drawRealShadowRoundRect(env, canvas, btnBoxX, btnBoxY, btnBoxX + btnBoxW, btnBoxY + btnBoxH, 28, 28);
-        int playBtnBg = gameUI.isCurrentlyDark ? 0xFF282828 : 0xFFF1F3F5;
-        drawRoundRectNative(env, canvas, btnBoxX, btnBoxY, btnBoxX + btnBoxW, btnBoxY + btnBoxH, 28, 28, playBtnBg);
-
-        float innerIconSize = 55.0f;
-        float iconOffsetX = btnBoxX + (btnBoxW / 2.0f) - (innerIconSize / 2.0f);
-        float iconOffsetY = btnBoxY + (btnBoxH / 2.0f) - (innerIconSize / 2.0f);
-        
-        if (gameUI.assetBitmaps[ASSET_PLAY]) {
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PLAY], iconOffsetX, iconOffsetY, innerIconSize, tintActive);
-        }
-        gameUI.UIButtons.push_back({btnBoxX, btnBoxY, btnBoxW, btnBoxH, 2001, 0});
+        drawDialogButton(env, canvas, playX, playY, playW, playH, "Play", COLOR_ACCENT_BLUE, 0xFFFFFFFF);
+        gameUI.UIButtons.push_back({playX, playY, playW, playH, 2001, 0});
     }
 
     // --- 2. SELECT LEVEL SCREEN ---
     if (gameUI.currentState == STATE_LEVELS) {
-        float boxSize = gameUI.screenWidth * 0.24f;
+        float boxSize = gameUI.screenWidth * 0.25f;
         float spaceGrid = gameUI.screenWidth * 0.04f;
         float offsetGridX = (gameUI.screenWidth - (3 * boxSize + 2 * spaceGrid)) / 2.0f;
         
@@ -206,7 +225,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             int row = i / 3;
             int col = i % 3;
             float bx = offsetGridX + col * (boxSize + spaceGrid);
-            float by = headerFixedBarHeight + 20.0f + row * (boxSize + spaceGrid) + gameUI.levelScrollOffset;
+            float by = headerFixedBarHeight + 30.0f + row * (boxSize + spaceGrid) + gameUI.levelScrollOffset;
             
             float currentBottom = by + boxSize;
             if (currentBottom > lastRowBottomY) {
@@ -215,27 +234,32 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
 
             if (by + boxSize < headerFixedBarHeight || by > footerStartY) continue;
 
-            drawRealShadowRoundRect(env, canvas, bx, by, bx + boxSize, by + boxSize, 20, 20);
+            int finalBoxColor = baseCardColor; 
+            int textLvlColor = baseTxtColor;
             
-            int finalBoxColor = 0xFF007AFF; 
-            if (!gameUI.levelsUnlocked[i]) {
+            if (gameUI.levelsUnlocked[i]) {
+                if (i == gameUI.currentPlayingLevel - 1 || i == 0) {
+                    finalBoxColor = COLOR_ACCENT_BLUE;
+                    textLvlColor = 0xFFFFFFFF;
+                }
+            } else {
                 if (i > 0 && gameUI.levelsUnlocked[i - 1]) {
-                    finalBoxColor = 0xFFFF9500; 
-                } else {
-                    finalBoxColor = 0xFFD3D3D3; 
+                    finalBoxColor = 0xFFE58E26; // Highlighted Locked Ad-State Row
                 }
             }
             
-            drawRoundRectNative(env, canvas, bx, by, bx + boxSize, by + boxSize, 20, 20, finalBoxColor);
+            drawRoundRectNative(env, canvas, bx, by, bx + boxSize, by + boxSize, 24, 24, finalBoxColor);
 
             if (!gameUI.levelsUnlocked[i]) {
+                float iconSz = boxSize * 0.35f;
+                float iconOffset = (boxSize - iconSz) / 2.0f;
                 if (i > 0 && gameUI.levelsUnlocked[i - 1]) {
                     if (gameUI.assetBitmaps[ASSET_REMOVE_ADS]) {
-                        renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_REMOVE_ADS], bx + (boxSize * 0.30f), by + (boxSize * 0.30f), boxSize * 0.40f, tintActive);
+                        renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_REMOVE_ADS], bx + iconOffset, by + iconOffset, iconSz, tintWhite);
                     }
                 } else {
                     if (gameUI.assetBitmaps[ASSET_LOCK]) {
-                        renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LOCK], bx + (boxSize * 0.30f), by + (boxSize * 0.30f), boxSize * 0.40f, tintActive);
+                        renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LOCK], bx + iconOffset, by + iconOffset, iconSz, tintGray);
                     }
                 }
             } else {
@@ -243,11 +267,18 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
                 if (gameUI.paintTextReference) {
                     jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
                     jmethodID setTextSize = env->GetMethodID(paintCls, "setTextSize", "(F)V");
-                    env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 40.0f);
+                    jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
+                    env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 38.0f);
+                    env->CallVoidMethod(gameUI.paintTextReference, setColor, textLvlColor);
                 }
                 std::string numLvl = std::to_string(i + 1);
                 jstring jNumL = env->NewStringUTF(numLvl.c_str());
-                env->CallVoidMethod(canvas, gameUI.midDrawText, jNumL, bx + (boxSize * 0.38f), by + (boxSize * 0.62f), gameUI.paintTextReference);
+                
+                jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
+                jmethodID measureText = env->GetMethodID(paintCls, "measureText", "(Ljava/lang/String;)F");
+                float numW = env->CallFloatMethod(gameUI.paintTextReference, measureText, jNumL);
+                
+                env->CallVoidMethod(canvas, gameUI.midDrawText, jNumL, bx + (boxSize - numW) / 2.0f, by + (boxSize / 2.0f) + 13.0f, gameUI.paintTextReference);
                 env->DeleteLocalRef(jNumL);
                 setPaintFontWeight(env, gameUI.paintTextReference, false);
             }
@@ -264,7 +295,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         float extensionY = lastRowBottomY + 40.0f;
         if (extensionY + extensionButtonHeight >= headerFixedBarHeight && extensionY <= footerStartY) {
             float extW = gameUI.screenWidth - (2.0f * offsetGridX);
-            drawDialogButton(env, canvas, offsetGridX, extensionY, extW, extensionButtonHeight, "Complete all levels to open more", 0xFF34C759, 0xFFFFFFFF);
+            drawDialogButton(env, canvas, offsetGridX, extensionY, extW, extensionButtonHeight, "Complete all levels to open more", baseCardColor, unselectedGrayColor);
             gameUI.UIButtons.push_back({offsetGridX, extensionY, extW, extensionButtonHeight, 3999, 0});
         }
 
@@ -276,7 +307,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         if (gameUI.paintTextReference) {
             jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
             jmethodID setTextSize = env->GetMethodID(paintCls, "setTextSize", "(F)V");
-            env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 55.0f);
+            env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 46.0f);
         }
         
         jstring levelHeader = env->NewStringUTF("SELECT LEVEL");
@@ -290,40 +321,31 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         setPaintFontWeight(env, gameUI.paintTextReference, false);
     }
 
-    // --- 3. SETTINGS MENU VIEW ---
+    // --- 3. SETTINGS MENU VIEW (Professional Grouped Card Layout) ---
     if (gameUI.currentState == STATE_SETTINGS) {
         drawRoundRectNative(env, canvas, 0, 0, gameUI.screenWidth, headerFixedBarHeight, 0, 0, baseBgColor);
         if (gameUI.paintTextReference) {
             setPaintFontWeight(env, gameUI.paintTextReference, true);
             jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
             jmethodID setTextSize = env->GetMethodID(paintCls, "setTextSize", "(F)V");
-            env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 55.0f);
+            env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 46.0f);
             jstring setHeader = env->NewStringUTF("SETTINGS");
-            env->CallVoidMethod(canvas, gameUI.midDrawText, setHeader, 40.0f, 105.0f, gameUI.paintTextReference);
+            env->CallVoidMethod(canvas, gameUI.midDrawText, setHeader, 45.0f, 105.0f, gameUI.paintTextReference);
             env->DeleteLocalRef(setHeader);
             setPaintFontWeight(env, gameUI.paintTextReference, false);
         }
 
-        float optionY = headerFixedBarHeight + 40.0f;
+        float optionY = headerFixedBarHeight + 30.0f;
         float optionHeight = 110.0f; 
-        float optionSpacing = 30.0f;
-        float marginX = 40.0f;
+        float optionSpacing = 20.0f;
+        float marginX = 45.0f;
         float rowWidth = gameUI.screenWidth - (2 * marginX);
 
-        const char* optionsNames[] = {"Change Theme", "Rate My App", "Share My App", "Privacy Policy"};
+        const char* optionsNames[] = {"Dark mode", "Rate us", "Share app", "Privacy"};
         int optionActions[] = {6501, 6504, 6503, 6502}; 
 
         for (int i = 0; i < 4; i++) {
-            int rowColor = gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFF1F3F5;
-            drawRoundRectNative(env, canvas, marginX, optionY, marginX + rowWidth, optionY + optionHeight, 18, 18, rowColor);
-
-            if (i == 1 && gameUI.assetBitmaps[ASSET_STAR]) { 
-                for(int s=0; s<5; s++) {
-                    renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_STAR], marginX + 25.0f + (s * 32.0f), optionY + 36.0f, 32.0f, tintYellow);
-                }
-            } else if (i == 2 && gameUI.assetBitmaps[ASSET_SHARE]) {
-                renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_SHARE], marginX + 35.0f, optionY + 30.0f, 50.0f, tintActive);
-            }
+            drawRoundRectNative(env, canvas, marginX, optionY, marginX + rowWidth, optionY + optionHeight, 24, 24, baseCardColor);
 
             if (gameUI.paintTextReference) {
                 jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
@@ -333,12 +355,18 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
                 env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
                 
                 jstring textStr = env->NewStringUTF(optionsNames[i]);
-                float textLeftMargin = 30.0f;
-                if (i == 1) textLeftMargin = 200.0f; 
-                else if (i == 2) textLeftMargin = 110.0f; 
-                
-                env->CallVoidMethod(canvas, gameUI.midDrawText, textStr, marginX + textLeftMargin, optionY + 68.0f, gameUI.paintTextReference);
+                env->CallVoidMethod(canvas, gameUI.midDrawText, textStr, marginX + 40.0f, optionY + 68.0f, gameUI.paintTextReference);
                 env->DeleteLocalRef(textStr);
+            }
+
+            // Draw sleek modern switch element container stub for option index 0
+            if (i == 0) {
+                float swW = 85.0f;
+                float swH = 46.0f;
+                float swX = marginX + rowWidth - swW - 40.0f;
+                float swY = optionY + (optionHeight - swH) / 2.0f;
+                drawRoundRectNative(env, canvas, swX, swY, swX + swW, swY + swH, swH/2.0f, swH/2.0f, gameUI.isCurrentlyDark ? COLOR_ACCENT_BLUE : unselectedGrayColor);
+                drawRoundRectNative(env, canvas, gameUI.isCurrentlyDark ? (swX + swW - 40.0f) : (swX + 6.0f), swY + 5.0f, gameUI.isCurrentlyDark ? (swX + swW - 6.0f) : (swX + swH - 11.0f), swY + swH - 5.0f, 18, 18, 0xFFFFFFFF);
             }
 
             gameUI.UIButtons.push_back({marginX, optionY, rowWidth, optionHeight, optionActions[i], 0});
@@ -354,13 +382,13 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         drawRoundRectNative(env, canvas, 0, 0, gameUI.screenWidth, headerFixedBarHeight, 0, 0, baseBgColor);
 
         if (gameUI.assetBitmaps[ASSET_PAUSED]) {
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PAUSED], 40.0f, baseIconY, headerIconSize, tintActive);
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_PAUSED], 40.0f, baseIconY, headerIconSize, tintWhite);
             gameUI.UIButtons.push_back({40.0f, baseIconY, headerIconSize, headerIconSize, 4002, 0});
         }
 
         if (gameUI.assetBitmaps[ASSET_HINT]) {
             float hintX = gameUI.screenWidth - headerIconSize - 40.0f;
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HINT], hintX, baseIconY, headerIconSize, tintActive);
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HINT], hintX, baseIconY, headerIconSize, tintWhite);
             gameUI.UIButtons.push_back({hintX, baseIconY, headerIconSize, headerIconSize, 4003, 0});
         }
 
@@ -371,15 +399,15 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
             jmethodID measureText = env->GetMethodID(paintCls, "measureText", "(Ljava/lang/String;)F");
 
-            env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 45.0f);
+            env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 42.0f);
             env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
 
-            std::string lvlBanner = "LEVEL " + std::to_string(gameUI.currentPlayingLevel);
+            std::string lvlBanner = "Level " + std::to_string(gameUI.currentPlayingLevel);
             jstring jBanner = env->NewStringUTF(lvlBanner.c_str());
             float textW = env->CallFloatMethod(gameUI.paintTextReference, measureText, jBanner);
             float bannerX = (gameUI.screenWidth / 2.0f) - (textW / 2.0f);
 
-            env->CallVoidMethod(canvas, gameUI.midDrawText, jBanner, bannerX, 105.0f, gameUI.paintTextReference);
+            env->CallVoidMethod(canvas, gameUI.midDrawText, jBanner, bannerX, 95.0f, gameUI.paintTextReference);
             env->DeleteLocalRef(jBanner);
             setPaintFontWeight(env, gameUI.paintTextReference, false);
         }
@@ -406,7 +434,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         jmethodID setAlphaMethod = env->GetMethodID(paintClass, "setAlpha", "(I)V");
 
         env->CallVoidMethod(dotPaint, setPaintColorMethod, gameUI.isCurrentlyDark ? 0xFFFFFFFF : 0xFF222222);
-        env->CallVoidMethod(dotPaint, setAlphaMethod, 64); 
+        env->CallVoidMethod(dotPaint, setAlphaMethod, 40); 
 
         jmethodID midDrawCircle = env->GetMethodID(env->GetObjectClass(canvas), "drawCircle", "(FFFLandroid/graphics/Paint;)V");
 
@@ -419,15 +447,15 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
                 nodeCoordinatesX[dotIndex] = circleX;
                 nodeCoordinatesY[dotIndex] = circleY;
 
-                env->CallVoidMethod(canvas, midDrawCircle, circleX, circleY, 11.0f, dotPaint);
+                env->CallVoidMethod(canvas, midDrawCircle, circleX, circleY, 8.0f, dotPaint);
                 dotIndex++;
             }
         }
 
         jobject linePaint = env->NewObject(paintClass, paintInit);
         jmethodID setStrokeWidth = env->GetMethodID(paintClass, "setStrokeWidth", "(F)V");
-        env->CallVoidMethod(linePaint, setPaintColorMethod, 0xFFFF3B30); 
-        env->CallVoidMethod(linePaint, setStrokeWidth, 6.0f);
+        env->CallVoidMethod(linePaint, setPaintColorMethod, COLOR_ACCENT_BLUE); 
+        env->CallVoidMethod(linePaint, setStrokeWidth, 8.0f);
         jmethodID midDrawLine = env->GetMethodID(env->GetObjectClass(canvas), "drawLine", "(FFFFLandroid/graphics/Paint;)V");
 
         float nodeStartX = nodeCoordinatesX[0];
@@ -442,7 +470,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             env->CallIntMethod(canvas, gameUI.midSave);
             jmethodID midRotate = env->GetMethodID(env->GetObjectClass(canvas), "rotate", "(FFF)V");
             env->CallVoidMethod(canvas, midRotate, 180.0f, nodeEndX, nodeEndY);
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], nodeEndX - 25.0f, nodeEndY - 25.0f, 50.0f, tintRed);
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], nodeEndX - 25.0f, nodeEndY - 25.0f, 50.0f, tintWhite);
             env->CallVoidMethod(canvas, midRotate, 0.0f, nodeStartX, nodeStartY); 
             env->CallVoidMethod(canvas, gameUI.midRestore);
         }
@@ -454,33 +482,49 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         env->DeleteLocalRef(paintClass);
     }
 
-    // --- 5. FIXED FOOTER NAVIGATION ARCHITECTURE ---
+    // --- 5. IMMERSIVE BOTTOM NAVIGATION VIEW BAR ---
     if (gameUI.currentState == STATE_HOME || gameUI.currentState == STATE_SETTINGS || gameUI.currentState == STATE_LEVELS) {
-        drawRoundRectNative(env, canvas, 0, footerStartY, gameUI.screenWidth, gameUI.screenHeight, 0, 0, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFF8F9FA);
+        drawRoundRectNative(env, canvas, 0, footerStartY, gameUI.screenWidth, gameUI.screenHeight, 0, 0, baseCardColor);
 
-        float navIconSize = 65.0f; 
-        float innerSpaceY = footerStartY + (footerFixedBarHeight / 2.0f) - (navIconSize / 2.0f);
+        float navIconSize = 55.0f; 
+        float innerSpaceY = footerStartY + 35.0f;
         float sectionStep = gameUI.screenWidth / 3.0f;
+
+        // Custom Capsule Pill Indicator Highlight background matching modern specs
+        float pillW = 120.0f;
+        float pillH = 64.0f;
+        float pillY = innerSpaceY - 5.0f;
+
+        if (gameUI.currentState == STATE_HOME) {
+            float activePillX = (sectionStep * 0.5f) - (pillW / 2.0f);
+            drawRoundRectNative(env, canvas, activePillX, pillY, activePillX + pillW, pillY + pillH, pillH/2.0f, pillH/2.0f, gameUI.isCurrentlyDark ? 0xFF2C354A : 0xFFE0E6FF);
+        } else if (gameUI.currentState == STATE_LEVELS) {
+            float activePillX = (sectionStep * 1.5f) - (pillW / 2.0f);
+            drawRoundRectNative(env, canvas, activePillX, pillY, activePillX + pillW, pillY + pillH, pillH/2.0f, pillH/2.0f, gameUI.isCurrentlyDark ? 0xFF2C354A : 0xFFE0E6FF);
+        } else if (gameUI.currentState == STATE_SETTINGS) {
+            float activePillX = (sectionStep * 2.5f) - (pillW / 2.0f);
+            drawRoundRectNative(env, canvas, activePillX, pillY, activePillX + pillW, pillY + pillH, pillH/2.0f, pillH/2.0f, gameUI.isCurrentlyDark ? 0xFF2C354A : 0xFFE0E6FF);
+        }
 
         if (gameUI.assetBitmaps[ASSET_HOME]) {
             jobject homePaint = (gameUI.currentState == STATE_HOME) ? tintActive : tintGray;
             float homeX = (sectionStep * 0.5f) - (navIconSize / 2.0f);
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HOME], homeX, innerSpaceY, navIconSize, homePaint);
-            gameUI.UIButtons.push_back({homeX, innerSpaceY, navIconSize, navIconSize, 9001, 0});
+            gameUI.UIButtons.push_back({homeX - 20.0f, footerStartY, navIconSize + 40.0f, footerFixedBarHeight, 9001, 0});
         }
 
         if (gameUI.assetBitmaps[ASSET_LEVEL]) {
             jobject lvlPaint = (gameUI.currentState == STATE_LEVELS) ? tintActive : tintGray;
             float lvlX = (sectionStep * 1.5f) - (navIconSize / 2.0f);
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LEVEL], lvlX, innerSpaceY, navIconSize, lvlPaint);
-            gameUI.UIButtons.push_back({lvlX, innerSpaceY, navIconSize, navIconSize, 9002, 0});
+            gameUI.UIButtons.push_back({lvlX - 20.0f, footerStartY, navIconSize + 40.0f, footerFixedBarHeight, 9002, 0});
         }
 
         if (gameUI.assetBitmaps[ASSET_SETTINGS]) {
             jobject setPaint = (gameUI.currentState == STATE_SETTINGS) ? tintActive : tintGray;
             float setX = (sectionStep * 2.5f) - (navIconSize / 2.0f);
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_SETTINGS], setX, innerSpaceY, navIconSize, setPaint);
-            gameUI.UIButtons.push_back({setX, innerSpaceY, navIconSize, navIconSize, 9003, 0});
+            gameUI.UIButtons.push_back({setX - 20.0f, footerStartY, navIconSize + 40.0f, footerFixedBarHeight, 9003, 0});
         }
     }
 
@@ -488,26 +532,26 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     bool activeModalBlocks = (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive || gameUI.isPausePopupActive || localIsAdWatchPopupActive);
 
     if (activeModalBlocks) {
-        drawRoundRectNative(env, canvas, 0, 0, gameUI.screenWidth, gameUI.screenHeight, 0, 0, 0x88000000);
+        drawRoundRectNative(env, canvas, 0, 0, gameUI.screenWidth, gameUI.screenHeight, 0, 0, 0xAA000000);
 
         float dW = gameUI.screenWidth * 0.84f;
-        float dH = gameUI.screenHeight * 0.44f; 
+        float dH = gameUI.screenHeight * 0.42f; 
         float dX = (gameUI.screenWidth - dW) / 2.0f;
         float dY = (gameUI.screenHeight - dH) / 2.0f;
 
-        drawRoundRectNative(env, canvas, dX, dY, dX + dW, dY + dH, 36, 36, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFFFFFFF);
+        drawRoundRectNative(env, canvas, dX, dY, dX + dW, dY + dH, 44, 44, gameUI.isCurrentlyDark ? COLOR_DARK_CARD : COLOR_LIGHT_CARD);
 
         jclass paintCls = gameUI.paintTextReference ? env->GetObjectClass(gameUI.paintTextReference) : nullptr;
         jmethodID setTextSize = paintCls ? env->GetMethodID(paintCls, "setTextSize", "(F)V") : nullptr;
         jmethodID setColor = paintCls ? env->GetMethodID(paintCls, "setColor", "(I)V") : nullptr;
         jmethodID measureText = paintCls ? env->GetMethodID(paintCls, "measureText", "(Ljava/lang/String;)F") : nullptr;
 
-        float closeBtnSize = 52.0f;
-        float closeX = dX + dW - closeBtnSize - 25.0f;
-        float closeY = dY + 25.0f;
+        float closeBtnSize = 48.0f;
+        float closeX = dX + dW - closeBtnSize - 30.0f;
+        float closeY = dY + 30.0f;
         if (gameUI.assetBitmaps[ASSET_CLOSE]) {
-            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_CLOSE], closeX, closeY, closeBtnSize, tintActive);
-            gameUI.UIButtons.push_back({closeX - 10.0f, closeY - 10.0f, closeBtnSize + 20.0f, closeBtnSize + 20.0f, 9999, 0});
+            renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_CLOSE], closeX, closeY, closeBtnSize, tintGray);
+            gameUI.UIButtons.push_back({closeX - 15.0f, closeY - 15.0f, closeBtnSize + 30.0f, closeBtnSize + 30.0f, 9999, 0});
         }
 
         // --- AD UNLOCK FEATURES MODAL INTERLAY ---
@@ -518,7 +562,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
                 env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
                 
                 jstring lockTitle = env->NewStringUTF("Level is Locked!");
-                jstring lockDesc = env->NewStringUTF("Tap here to watch ads and");
+                jstring lockDesc = env->NewStringUTF("Tap below to watch ads and");
                 jstring lockDescSub = env->NewStringUTF("unlock this level instantly!");
 
                 float tW1 = env->CallFloatMethod(gameUI.paintTextReference, measureText, lockTitle);
@@ -542,7 +586,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             float actX = dX + (dW - actBtnW) / 2.0f;
             float actY = dY + dH - actBtnH - 45.0f;
             
-            drawDialogButton(env, canvas, actX, actY, actBtnW, actBtnH, "WATCH AD TO PLAY", 0xFFFF9500, 0xFFFFFFFF);
+            drawDialogButton(env, canvas, actX, actY, actBtnW, actBtnH, "WATCH AD TO PLAY", 0xFFE58E26, 0xFFFFFFFF);
             gameUI.UIButtons.push_back({actX, actY, actBtnW, actBtnH, 7850, 0}); 
         }
 
@@ -578,7 +622,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             float actionX = dX + (dW - actionBtnW) / 2.0f;
             float actionY = dY + dH - actionBtnH - 40.0f;
             
-            drawDialogButton(env, canvas, actionX, actionY, actionBtnW, actionBtnH, "SUBMIT", 0xFF007AFF, 0xFFFFFFFF);
+            drawDialogButton(env, canvas, actionX, actionY, actionBtnW, actionBtnH, "SUBMIT", COLOR_ACCENT_BLUE, 0xFFFFFFFF);
             gameUI.UIButtons.push_back({actionX, actionY, actionBtnW, actionBtnH, 8500, 0}); 
         }
 
@@ -607,10 +651,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             float actX = dX + (dW - actBtnW) / 2.0f;
             float actY = dY + dH - actBtnH - 35.0f;
             
-            drawDialogButton(env, canvas, actX, actY, actBtnW, actBtnH, "  WATCH ADS", 0xFFE2A000, 0xFFFFFFFF);
-            if (gameUI.assetBitmaps[ASSET_REMOVE_ADS]) {
-                renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_REMOVE_ADS], actX + 45.0f, actY + 22.0f, 40.0f, tintActive);
-            }
+            drawDialogButton(env, canvas, actX, actY, actBtnW, actBtnH, "WATCH ADS", COLOR_ACCENT_BLUE, 0xFFFFFFFF);
             gameUI.UIButtons.push_back({actX, actY, actBtnW, actBtnH, 4003, 0});
         }
 
@@ -636,7 +677,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({btnLightX, rowY, colW, colH, 7701, 0});
 
             float btnDarkX = dX + 40.0f + colW;
-            drawDialogButton(env, canvas, btnDarkX, rowY, colW, colH, "DARK", 0xFF212529, 0xFFFFFFFF);
+            drawDialogButton(env, canvas, btnDarkX, rowY, colW, colH, "DARK", COLOR_DARK_BG, 0xFFFFFFFF);
             gameUI.UIButtons.push_back({btnDarkX, rowY, colW, colH, 7700, 0});
         }
 
@@ -653,7 +694,6 @@ Java_com_night_backgroundchange_MainActivity_setGameplayZoomFactor(JNIEnv* env, 
     }
 }
 
-// Java controller endpoint to switch the Ad Unlock popup state cleanly
 JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_setAdWatchPopupState(JNIEnv* env, jobject obj, jboolean isOpen) {
     localIsAdWatchPopupActive = (bool)isOpen;
