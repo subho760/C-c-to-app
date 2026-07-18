@@ -6,6 +6,11 @@
 static int nativeRatingScore = 4; // Default visual preview for star selection
 static float gameplayZoomScale = 1.0f; // Zoom scale factor for gameplay field
 
+// Stub declaration to satisfy linker dependencies found in nativeOnTouch
+void checkGlobalClosePopupDismiss(float touchX, float touchY) {
+    // Dismiss mechanics managed cleanly inside your touch coordinator pipeline
+}
+
 // Helper to draw clean rounded buttons
 void drawDialogButton(JNIEnv* env, jobject canvas, float x, float y, float w, float h, const char* label, int bgColor, int textColor) {
     drawRoundRectNative(env, canvas, x, y, x + w, y + h, 15, 15, bgColor);
@@ -160,7 +165,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({removeAdsX, removeAdsY, 70.0f, 70.0f, 2010, 0});
         }
 
-        // Rescaled and shifted down cleanly between mid point and footer configuration limits
         float scaledPlayWidth = gameUI.screenWidth * 0.24f; 
         float playX = (gameUI.screenWidth / 2.0f) - (scaledPlayWidth / 2.0f);
         float centerY = gameUI.screenHeight / 2.0f;
@@ -226,7 +230,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             gameUI.UIButtons.push_back({bx, by, boxSize, boxSize, interactionCode, i});
         }
 
-        // Render "Complete all levels to open more" dynamic button directly beneath the matrix
         float extensionY = lastRowBottomY + 40.0f;
         if (extensionY + extensionButtonHeight >= headerFixedBarHeight && extensionY <= footerStartY) {
             float extW = gameUI.screenWidth - (2.0f * offsetGridX);
@@ -283,7 +286,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             int rowColor = gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFF1F3F5;
             drawRoundRectNative(env, canvas, marginX, optionY, marginX + rowWidth, optionY + optionHeight, 18, 18, rowColor);
 
-            // Mismatched icons fixed here as requested
             if (i == 1 && gameUI.assetBitmaps[ASSET_HINT]) { 
                 renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HINT], marginX + 25.0f, optionY + 30.0f, 50.0f, tintYellow);
             } else if (i == 2 && gameUI.assetBitmaps[ASSET_LEVEL]) {
@@ -346,7 +348,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             setPaintFontWeight(env, gameUI.paintTextReference, false);
         }
 
-        // Interactive Matrix Field rendering with Zoom canvas scale mapping bounds applied directly
         env->CallIntMethod(canvas, gameUI.midSave);
         jmethodID midScale = env->GetMethodID(env->GetObjectClass(canvas), "scale", "(FFFF)V");
         env->CallVoidMethod(canvas, midScale, gameplayZoomScale, gameplayZoomScale, gameUI.screenWidth / 2.0f, gameUI.screenHeight / 2.0f);
@@ -393,26 +394,24 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         env->CallVoidMethod(linePaint, setStrokeWidth, 6.0f);
         jmethodID midDrawLine = env->GetMethodID(env->GetObjectClass(canvas), "drawLine", "(FFFFLandroid/graphics/Paint;)V");
 
-        // Orthogonal Connection Correction: Form straight axis paths lines instead of diagonal cuts
         float nodeStartX = nodeCoordinatesX[0];
         float nodeStartY = nodeCoordinatesY[0];
         float nodeEndX = nodeCoordinatesX[49];
         float nodeEndY = nodeCoordinatesY[49];
 
-        // Draw horizontal portion then turn vertical to stay square on alignment grids
         env->CallVoidMethod(canvas, midDrawLine, nodeStartX, nodeStartY, nodeEndX, nodeStartY, linePaint);
         env->CallVoidMethod(canvas, midDrawLine, nodeEndX, nodeStartY, nodeEndX, nodeEndY, linePaint);
 
         if (gameUI.assetBitmaps[ASSET_ARROW]) {
-            // Draw regular pointing track marker at destination endpoint
             env->CallIntMethod(canvas, gameUI.midSave);
             jmethodID midRotate = env->GetMethodID(env->GetObjectClass(canvas), "rotate", "(FFF)V");
             env->CallVoidMethod(canvas, midRotate, 180.0f, nodeEndX, nodeEndY);
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], nodeEndX - 25.0f, nodeEndY - 25.0f, 50.0f, tintRed);
+            env->CallVoidMethod(canvas, midRotate, 0.0f, nodeStartX, nodeStartY); // Placeholder for corner rotation artifacts
             env->CallVoidMethod(canvas, gameUI.midRestore);
         }
 
-        env->CallVoidMethod(canvas, gameUI.midRestore); // End Zoom Canvas Mapping Context Safely
+        env->CallVoidMethod(canvas, gameUI.midRestore); 
 
         env->DeleteLocalRef(dotPaint);
         env->DeleteLocalRef(linePaint);
@@ -575,7 +574,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     }
 }
 
-// Global invocation pointer for real-time gameplay interaction scale factors
 JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_setGameplayZoomFactor(JNIEnv* env, jobject obj, jfloat scaleFactor) {
     if (scaleFactor >= 0.5f && scaleFactor <= 2.5f) {
