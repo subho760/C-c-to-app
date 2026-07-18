@@ -5,6 +5,7 @@
 // Safe local trackers for runtime dynamic features
 static int nativeRatingScore = 4; // Default visual preview for star selection
 static float gameplayZoomScale = 1.0f; // Zoom scale factor for gameplay field
+static bool localIsAdWatchPopupActive = false; // Local flag to prevent game_structures.h compiler errors
 
 // Stub declaration to satisfy linker dependencies found in nativeOnTouch
 void checkGlobalClosePopupDismiss(float touchX, float touchY) {
@@ -216,13 +217,12 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
 
             drawRealShadowRoundRect(env, canvas, bx, by, bx + boxSize, by + boxSize, 20, 20);
             
-            int finalBoxColor = 0xFF007AFF; // Default active level color
+            int finalBoxColor = 0xFF007AFF; 
             if (!gameUI.levelsUnlocked[i]) {
-                // If it is the immediate next locked level, show special state
                 if (i > 0 && gameUI.levelsUnlocked[i - 1]) {
-                    finalBoxColor = 0xFFFF9500; // Orange color indicating "Watch to Unlock" feature
+                    finalBoxColor = 0xFFFF9500; 
                 } else {
-                    finalBoxColor = 0xFFD3D3D3; // Hard gray for deep locked levels
+                    finalBoxColor = 0xFFD3D3D3; 
                 }
             }
             
@@ -230,7 +230,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
 
             if (!gameUI.levelsUnlocked[i]) {
                 if (i > 0 && gameUI.levelsUnlocked[i - 1]) {
-                    // Ad-lock visual trigger for the next playable level
                     if (gameUI.assetBitmaps[ASSET_REMOVE_ADS]) {
                         renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_REMOVE_ADS], bx + (boxSize * 0.30f), by + (boxSize * 0.30f), boxSize * 0.40f, tintActive);
                     }
@@ -253,12 +252,11 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
                 setPaintFontWeight(env, gameUI.paintTextReference, false);
             }
 
-            // Interaction assignments
-            int interactionCode = 4150; // Hard locked deep level
+            int interactionCode = 4150; 
             if (gameUI.levelsUnlocked[i]) {
                 interactionCode = 3000 + i;
             } else if (i > 0 && gameUI.levelsUnlocked[i - 1]) {
-                interactionCode = 7800 + i; // Triggers Ad watch layout verification popup
+                interactionCode = 7800 + i; 
             }
             gameUI.UIButtons.push_back({bx, by, boxSize, boxSize, interactionCode, i});
         }
@@ -319,9 +317,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             int rowColor = gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFF1F3F5;
             drawRoundRectNative(env, canvas, marginX, optionY, marginX + rowWidth, optionY + optionHeight, 18, 18, rowColor);
 
-            // Render matching verified assets dynamically inside layout slots
             if (i == 1 && gameUI.assetBitmaps[ASSET_STAR]) { 
-                // Draw 5 stars sequentially inside the "Rate My App" row bounds
                 for(int s=0; s<5; s++) {
                     renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_STAR], marginX + 25.0f + (s * 32.0f), optionY + 36.0f, 32.0f, tintYellow);
                 }
@@ -338,8 +334,8 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
                 
                 jstring textStr = env->NewStringUTF(optionsNames[i]);
                 float textLeftMargin = 30.0f;
-                if (i == 1) textLeftMargin = 200.0f; // Give breathing room for the 5 stars preview
-                else if (i == 2) textLeftMargin = 110.0f; // Room for the share graphic icon
+                if (i == 1) textLeftMargin = 200.0f; 
+                else if (i == 2) textLeftMargin = 110.0f; 
                 
                 env->CallVoidMethod(canvas, gameUI.midDrawText, textStr, marginX + textLeftMargin, optionY + 68.0f, gameUI.paintTextReference);
                 env->DeleteLocalRef(textStr);
@@ -458,7 +454,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         env->DeleteLocalRef(paintClass);
     }
 
-    // --- 5. FIXED FOOTER NAVIGATION ARCHITECTURE WITH POPUP CLEAR FIXES ---
+    // --- 5. FIXED FOOTER NAVIGATION ARCHITECTURE ---
     if (gameUI.currentState == STATE_HOME || gameUI.currentState == STATE_SETTINGS || gameUI.currentState == STATE_LEVELS) {
         drawRoundRectNative(env, canvas, 0, footerStartY, gameUI.screenWidth, gameUI.screenHeight, 0, 0, gameUI.isCurrentlyDark ? 0xFF1E1E1E : 0xFFF8F9FA);
 
@@ -470,7 +466,6 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             jobject homePaint = (gameUI.currentState == STATE_HOME) ? tintActive : tintGray;
             float homeX = (sectionStep * 0.5f) - (navIconSize / 2.0f);
             renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_HOME], homeX, innerSpaceY, navIconSize, homePaint);
-            // Action ID 9001: Explicitly clear modal lock triggers on switch context requests
             gameUI.UIButtons.push_back({homeX, innerSpaceY, navIconSize, navIconSize, 9001, 0});
         }
 
@@ -490,7 +485,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
     }
 
     // --- 6. GLOBAL DIALOG POPUPS & INTERFACE INTERLAYS ---
-    bool activeModalBlocks = (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive || gameUI.isPausePopupActive || gameUI.isAdWatchPopupActive);
+    bool activeModalBlocks = (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive || gameUI.isPausePopupActive || localIsAdWatchPopupActive);
 
     if (activeModalBlocks) {
         drawRoundRectNative(env, canvas, 0, 0, gameUI.screenWidth, gameUI.screenHeight, 0, 0, 0x88000000);
@@ -504,7 +499,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
 
         jclass paintCls = gameUI.paintTextReference ? env->GetObjectClass(gameUI.paintTextReference) : nullptr;
         jmethodID setTextSize = paintCls ? env->GetMethodID(paintCls, "setTextSize", "(F)V") : nullptr;
-        jmethodID setColor = paintCls ? env->GetMethodID(paintCls, "setColor", "(I)V") : nullptr;
+        jmethodID setColor = paintCls ? env->GetMethodID(paintCls, "setColor", "(I)V");
         jmethodID measureText = paintCls ? env->GetMethodID(paintCls, "measureText", "(Ljava/lang/String;)F") : nullptr;
 
         float closeBtnSize = 52.0f;
@@ -516,7 +511,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
         }
 
         // --- AD UNLOCK FEATURES MODAL INTERLAY ---
-        if (gameUI.isAdWatchPopupActive) {
+        if (localIsAdWatchPopupActive) {
             if (paintCls && setTextSize && setColor && measureText) {
                 setPaintFontWeight(env, gameUI.paintTextReference, true);
                 env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 42.0f);
@@ -548,7 +543,7 @@ Java_com_night_backgroundchange_MainActivity_nativeRender(JNIEnv* env, jobject o
             float actY = dY + dH - actBtnH - 45.0f;
             
             drawDialogButton(env, canvas, actX, actY, actBtnW, actBtnH, "WATCH AD TO PLAY", 0xFFFF9500, 0xFFFFFFFF);
-            gameUI.UIButtons.push_back({actX, actY, actBtnW, actBtnH, 7850, 0}); // Button ID triggers Ad video player callback
+            gameUI.UIButtons.push_back({actX, actY, actBtnW, actBtnH, 7850, 0}); 
         }
 
         if (gameUI.isRatingPopupActive) { 
@@ -656,6 +651,12 @@ Java_com_night_backgroundchange_MainActivity_setGameplayZoomFactor(JNIEnv* env, 
     if (scaleFactor >= 0.5f && scaleFactor <= 2.5f) {
         gameplayZoomScale = scaleFactor;
     }
+}
+
+// Java controller endpoint to switch the Ad Unlock popup state cleanly
+JNIEXPORT void JNICALL
+Java_com_night_backgroundchange_MainActivity_setAdWatchPopupState(JNIEnv* env, jobject obj, jboolean isOpen) {
+    localIsAdWatchPopupActive = (bool)isOpen;
 }
 
 } // extern "C"
