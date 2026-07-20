@@ -22,9 +22,10 @@ struct ClickableButton {
     float y;
     float w;
     float h;
-    int action;  // <--- MAKE SURE THIS SAYS 'action'
-    int param;
+    int actionCode;  // <--- Renamed from action/id
+    int levelValue;  // <--- Renamed from param
 };
+
 
 
 class GameMenuStructure {
