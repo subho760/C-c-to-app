@@ -70,10 +70,10 @@ void drawBottomNavigationBar(JNIEnv* env, jobject obj, jobject canvas) {
     }
     gameUI.UIButtons.push_back({0.0f, barY, sectionWidth, barHeight, 6001, 0});
 
-    // Tab 1: Level Select
+    // Tab 1: Level Select (Fixed ASSET_LEVEL identifier)
     float levelX = sectionWidth + (sectionWidth - iconSize) / 2.0f;
-    if (gameUI.assetBitmaps[ASSET_LEVELS]) {
-        renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LEVELS], levelX, iconY, iconSize);
+    if (gameUI.assetBitmaps[ASSET_LEVEL]) {
+        renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LEVEL], levelX, iconY, iconSize);
     }
     gameUI.UIButtons.push_back({sectionWidth, barY, sectionWidth, barHeight, 6002, 0});
 
