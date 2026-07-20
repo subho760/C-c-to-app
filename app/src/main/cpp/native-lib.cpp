@@ -141,20 +141,16 @@ Java_com_night_backgroundchange_MainActivity_nativeApplyScroll(JNIEnv* env, jobj
     }
 }
 
-JNSEXPORT void JNICALL
+JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject obj, jfloat x, jfloat y) {
     if (!gameUI.engineInitialized) return;
-
-    // checkGlobalClosePopupDismiss(x, y);
-
-    bool blockingPopup = (gameUI.isHintPopupActive || ...
 
     bool blockingPopup = (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive || gameUI.isPausePopupActive);
 
     for (const auto& btn : gameUI.UIButtons) {
         if (x >= btn.x && x <= btn.x + btn.w && y >= btn.y && y <= btn.y + btn.h) {
-            
-            if (btn.actionCode == 9999) { 
+
+            if (btn.actionCode == 9999) {
                 gameUI.isHintPopupActive = false;
                 gameUI.isThemePopupActive = false;
                 gameUI.isRatingPopupActive = false;
