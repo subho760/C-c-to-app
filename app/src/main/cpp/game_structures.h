@@ -18,10 +18,14 @@ enum AssetIndex {
 };
 
 struct ClickableButton {
-    float x, y, w, h;
-    int action;
-    int levelValue;
+    float x;
+    float y;
+    float w;
+    float h;
+    int action;  // <--- MAKE SURE THIS SAYS 'action'
+    int param;
 };
+
 
 class GameMenuStructure {
 public:
