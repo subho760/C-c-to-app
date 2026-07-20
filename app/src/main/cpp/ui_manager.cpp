@@ -628,7 +628,7 @@ Java_com_night_backgroundchange_MainActivity_handleNativeTouch(JNIEnv* env, jobj
         if (tx >= btn.x && tx <= (btn.x + btn.w) && ty >= btn.y && ty <= (btn.y + btn.h)) {
             
             // Global modal close
-            if (btn.action == 9999) {
+            if (btn.actionCode == 9999) {
                 gameUI.isHintPopupActive = false;
                 gameUI.isThemePopupActive = false;
                 gameUI.isRatingPopupActive = false;
@@ -637,41 +637,41 @@ Java_com_night_backgroundchange_MainActivity_handleNativeTouch(JNIEnv* env, jobj
             }
             
             // Rating actions
-            if (btn.action >= 8001 && btn.action <= 8005) {
-                nativeRatingScore = (btn.action - 8000);
+            if (btn.actionCode >= 8001 && btn.actionCode <= 8005) {
+                nativeRatingScore = (btn.actionCode - 8000);
                 return JNI_TRUE;
             }
-            if (btn.action == 8500) { 
+            if (btn.actionCode == 8500) { 
                 gameUI.isRatingPopupActive = false;
                 return JNI_TRUE;
             }
 
             // Navigation bar buttons
-            if (btn.action == 9001) { gameUI.currentState = STATE_HOME; return JNI_TRUE; }
-            if (btn.action == 9002) { gameUI.currentState = STATE_LEVELS; return JNI_TRUE; }
-            if (btn.action == 9003) { gameUI.currentState = STATE_SETTINGS; return JNI_TRUE; }
+            if (btn.actionCode == 9001) { gameUI.currentState = STATE_HOME; return JNI_TRUE; }
+            if (btn.actionCode == 9002) { gameUI.currentState = STATE_LEVELS; return JNI_TRUE; }
+            if (btn.actionCode == 9003) { gameUI.currentState = STATE_SETTINGS; return JNI_TRUE; }
 
             // Gameplay icons
-            if (btn.action == 4002) { gameUI.isPausePopupActive = true; return JNI_TRUE; }
-            if (btn.action == 4003) { gameUI.isHintPopupActive = !gameUI.isHintPopupActive; return JNI_TRUE; }
+            if (btn.actionCode == 4002) { gameUI.isPausePopupActive = true; return JNI_TRUE; }
+            if (btn.actionCode == 4003) { gameUI.isHintPopupActive = !gameUI.isHintPopupActive; return JNI_TRUE; }
             
             // Pause menu buttons
-            if (btn.action == 5501) { gameUI.isPausePopupActive = false; return JNI_TRUE; }
-            if (btn.action == 5502) { gameUI.isPausePopupActive = false; return JNI_TRUE; }
-            if (btn.action == 5504) { gameUI.isPausePopupActive = false; gameUI.currentState = STATE_HOME; return JNI_TRUE; }
+            if (btn.actionCode == 5501) { gameUI.isPausePopupActive = false; return JNI_TRUE; }
+            if (btn.actionCode == 5502) { gameUI.isPausePopupActive = false; return JNI_TRUE; }
+            if (btn.actionCode == 5504) { gameUI.isPausePopupActive = false; gameUI.currentState = STATE_HOME; return JNI_TRUE; }
 
             // Settings buttons
-            if (btn.action == 6501) { gameUI.isCurrentlyDark = !gameUI.isCurrentlyDark; return JNI_TRUE; }
-            if (btn.action == 6504) { gameUI.isRatingPopupActive = true; nativeRatingScore = 0; return JNI_TRUE; }
+            if (btn.actionCode == 6501) { gameUI.isCurrentlyDark = !gameUI.isCurrentlyDark; return JNI_TRUE; }
+            if (btn.actionCode == 6504) { gameUI.isRatingPopupActive = true; nativeRatingScore = 0; return JNI_TRUE; }
 
             // Ad reward level unlock actions
-            if (btn.action >= 7800 && btn.action < 7850) {
-                pendingUnlockLevelIndex = btn.param;
+            if (btn.actionCode >= 7800 && btn.actionCode < 7850) {
+                pendingUnlockLevelIndex = btn.levelValue;
                 localIsAdWatchPopupActive = true;
                 return JNI_TRUE;
             }
             
-            if (btn.action == 7850) {
+            if (btn.actionCode == 7850) {
                 if (pendingUnlockLevelIndex >= 0 && pendingUnlockLevelIndex < 50) {
                     gameUI.levelsUnlocked[pendingUnlockLevelIndex] = true;
                     gameUI.currentPlayingLevel = pendingUnlockLevelIndex + 1;
@@ -683,14 +683,14 @@ Java_com_night_backgroundchange_MainActivity_handleNativeTouch(JNIEnv* env, jobj
             }
 
             // Normal unlocked level actions
-            if (btn.action >= 3000 && btn.action < 3050) {
-                gameUI.currentPlayingLevel = btn.param + 1;
+            if (btn.actionCode >= 3000 && btn.actionCode < 3050) {
+                gameUI.currentPlayingLevel = btn.levelValue + 1;
                 gameUI.currentState = STATE_GAMEPLAY;
                 return JNI_TRUE;
             }
             
             // Main play button
-            if (btn.action == 2001) {
+            if (btn.actionCode == 2001) {
                 gameUI.currentState = STATE_GAMEPLAY;
                 return JNI_TRUE;
             }
