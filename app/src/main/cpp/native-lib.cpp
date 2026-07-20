@@ -141,17 +141,13 @@ Java_com_night_backgroundchange_MainActivity_nativeApplyScroll(JNIEnv* env, jobj
     }
 }
 
-JNIEXPORT void JNICALL
+JNSEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject obj, jfloat x, jfloat y) {
     if (!gameUI.engineInitialized) return;
 
-    // Change this line:
-checkGlobalClosePopupDismiss(x, y);
+    // checkGlobalClosePopupDismiss(x, y);
 
-// To this:
-// checkGlobalClosePopupDismiss(x, y);
-    
-
+    bool blockingPopup = (gameUI.isHintPopupActive || ...
 
     bool blockingPopup = (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive || gameUI.isPausePopupActive);
 
