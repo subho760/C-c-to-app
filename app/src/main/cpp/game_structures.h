@@ -19,7 +19,7 @@ enum AssetIndex {
 
 struct ClickableButton {
     float x, y, w, h;
-    int actionCode;
+    int action;
     int levelValue;
 };
 
