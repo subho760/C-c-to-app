@@ -2,8 +2,8 @@
 #include <algorithm>
 #include <cmath>
 
-// Helper to toggle font weight for text rendering
-void setPaintFontWeight(JNIEnv* env, jobject paint, bool bold) {
+// Marked 'static' to avoid duplicate symbol conflicts with native-lib.cpp
+static void setPaintFontWeight(JNIEnv* env, jobject paint, bool bold) {
     if (!paint) return;
     jclass paintCls = env->GetObjectClass(paint);
     jmethodID setFakeBoldText = env->GetMethodID(paintCls, "setFakeBoldText", "(Z)V");
@@ -70,7 +70,7 @@ void drawBottomNavigationBar(JNIEnv* env, jobject obj, jobject canvas) {
     }
     gameUI.UIButtons.push_back({0.0f, barY, sectionWidth, barHeight, 6001, 0});
 
-    // Tab 1: Level Select (Fixed ASSET_LEVEL identifier)
+    // Tab 1: Level Select
     float levelX = sectionWidth + (sectionWidth - iconSize) / 2.0f;
     if (gameUI.assetBitmaps[ASSET_LEVEL]) {
         renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_LEVEL], levelX, iconY, iconSize);
