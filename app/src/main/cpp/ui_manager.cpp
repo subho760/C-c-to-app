@@ -2,26 +2,39 @@
 #include <algorithm>
 #include <cmath>
 
+// Helper to clear JNI exceptions safely
+static void clearJniException(JNIEnv* env) {
+    if (env->ExceptionCheck()) {
+        env->ExceptionClear();
+    }
+}
+
 // ---------------------------------------------------------------------------
 // 1. MAIN HEADER ("rrows" title + animated/rotated arrow)
 // ---------------------------------------------------------------------------
 void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, int baseTxtColor) {
-    if (!gameUI.paintTextReference) return;
+    if (!canvas || !gameUI.paintTextReference) return;
 
     setPaintFontWeight(env, gameUI.paintTextReference, true);
+    
     jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
+    if (!paintCls) return;
+
     jmethodID setTextSize = env->GetMethodID(paintCls, "setTextSize", "(F)V");
     jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
     jmethodID measureText = env->GetMethodID(paintCls, "measureText", "(Ljava/lang/String;)F");
 
-    env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 72.0f);
-    env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
+    if (setTextSize) env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 72.0f);
+    if (setColor) env->CallVoidMethod(gameUI.paintTextReference, setColor, baseTxtColor);
 
     float midPointX = (float)gameUI.screenWidth / 2.0f;
     float fixedHeaderY = (float)gameUI.screenHeight * 0.20f; 
 
     jstring rrowStr = env->NewStringUTF("rrows");
-    float rrowWidth = env->CallFloatMethod(gameUI.paintTextReference, measureText, rrowStr);
+    float rrowWidth = 0.0f;
+    if (measureText && rrowStr) {
+        rrowWidth = env->CallFloatMethod(gameUI.paintTextReference, measureText, rrowStr);
+    }
 
     float inlineArrowSize = 60.0f;
     float totalHeaderWidth = inlineArrowSize + rrowWidth + 8.0f;
@@ -29,23 +42,39 @@ void drawGameHeader(JNIEnv* env, jobject obj, jobject canvas, int baseBgColor, i
     float arrowY = fixedHeaderY - 56.0f;
 
     if (gameUI.assetBitmaps[ASSET_ARROW]) {
-        env->CallIntMethod(canvas, gameUI.midSave);
-        jmethodID midRotate = env->GetMethodID(env->GetObjectClass(canvas), "rotate", "(FFF)V");
-        env->CallVoidMethod(canvas, midRotate, -90.0f, startX + (inlineArrowSize / 2.0f), arrowY + (inlineArrowSize / 2.0f));
+        if (gameUI.midSave) env->CallIntMethod(canvas, gameUI.midSave);
+        
+        jclass canvasCls = env->GetObjectClass(canvas);
+        if (canvasCls) {
+            jmethodID midRotate = env->GetMethodID(canvasCls, "rotate", "(FFF)V");
+            if (midRotate) {
+                env->CallVoidMethod(canvas, midRotate, -90.0f, startX + (inlineArrowSize / 2.0f), arrowY + (inlineArrowSize / 2.0f));
+            }
+            env->DeleteLocalRef(canvasCls);
+        }
+
         renderBmp(env, canvas, gameUI.assetBitmaps[ASSET_ARROW], startX, arrowY, inlineArrowSize);
-        env->CallVoidMethod(canvas, gameUI.midRestore);
+        if (gameUI.midRestore) env->CallVoidMethod(canvas, gameUI.midRestore);
     }
 
     float rrowX = startX + inlineArrowSize + 8.0f;
-    env->CallVoidMethod(canvas, gameUI.midDrawText, rrowStr, rrowX, fixedHeaderY, gameUI.paintTextReference);
-    env->DeleteLocalRef(rrowStr);
+    if (gameUI.midDrawText && rrowStr) {
+        env->CallVoidMethod(canvas, gameUI.midDrawText, rrowStr, rrowX, fixedHeaderY, gameUI.paintTextReference);
+    }
+
+    if (rrowStr) env->DeleteLocalRef(rrowStr);
+    env->DeleteLocalRef(paintCls);
+
     setPaintFontWeight(env, gameUI.paintTextReference, false);
+    clearJniException(env);
 }
 
 // ---------------------------------------------------------------------------
 // 2. BOTTOM NAVIGATION BAR
 // ---------------------------------------------------------------------------
 void drawBottomNavigationBar(JNIEnv* env, jobject obj, jobject canvas) {
+    if (!canvas) return;
+
     float barHeight = 80.0f;
     float barY = (float)gameUI.screenHeight - barHeight;
     float sectionWidth = (float)gameUI.screenWidth / 3.0f;
@@ -81,7 +110,7 @@ void drawBottomNavigationBar(JNIEnv* env, jobject obj, jobject canvas) {
 // 3. HOME SCREEN
 // ---------------------------------------------------------------------------
 void drawHomeScreen(JNIEnv* env, jobject obj, jobject canvas) {
-    if (gameUI.currentState != STATE_HOME) return;
+    if (gameUI.currentState != STATE_HOME || !canvas) return;
 
     // Remove Ads Icon (Top Right Corner)
     if (gameUI.assetBitmaps[ASSET_REMOVE_ADS]) {
@@ -100,20 +129,25 @@ void drawHomeScreen(JNIEnv* env, jobject obj, jobject canvas) {
     // Subtitle ("Level 1" indicator)
     if (gameUI.paintTextReference) {
         jclass paintCls = env->GetObjectClass(gameUI.paintTextReference);
-        jmethodID setTextSize = env->GetMethodID(paintCls, "setTextSize", "(F)V");
-        jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
-        
-        env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 40.0f);
-        env->CallVoidMethod(gameUI.paintTextReference, setColor, 0xFF5B6EFF);
+        if (paintCls) {
+            jmethodID setTextSize = env->GetMethodID(paintCls, "setTextSize", "(F)V");
+            jmethodID setColor = env->GetMethodID(paintCls, "setColor", "(I)V");
+            
+            if (setTextSize) env->CallVoidMethod(gameUI.paintTextReference, setTextSize, 40.0f);
+            if (setColor) env->CallVoidMethod(gameUI.paintTextReference, setColor, 0xFF5B6EFF);
 
-        jstring subStr = env->NewStringUTF("Level 1");
-        float midX = ((float)gameUI.screenWidth / 2.0f) - 60.0f;
-        float subY = (float)gameUI.screenHeight * 0.25f;
-        env->CallVoidMethod(canvas, gameUI.midDrawText, subStr, midX, subY, gameUI.paintTextReference);
-        env->DeleteLocalRef(subStr);
+            jstring subStr = env->NewStringUTF("Level 1");
+            float midX = ((float)gameUI.screenWidth / 2.0f) - 60.0f;
+            float subY = (float)gameUI.screenHeight * 0.25f;
+            if (gameUI.midDrawText && subStr) {
+                env->CallVoidMethod(canvas, gameUI.midDrawText, subStr, midX, subY, gameUI.paintTextReference);
+            }
+            if (subStr) env->DeleteLocalRef(subStr);
+            env->DeleteLocalRef(paintCls);
+        }
     }
 
-    // Play Button (0.75f height ratio)
+    // Play Button
     float playBtnW = (float)gameUI.screenWidth * 0.80f;
     float playBtnH = 60.0f;
     float playBtnX = ((float)gameUI.screenWidth - playBtnW) / 2.0f;
@@ -121,13 +155,15 @@ void drawHomeScreen(JNIEnv* env, jobject obj, jobject canvas) {
 
     drawRoundRectNative(env, canvas, playBtnX, playBtnY, playBtnX + playBtnW, playBtnY + playBtnH, 30, 30, 0xFF5B6EFF);
     gameUI.UIButtons.push_back({playBtnX, playBtnY, playBtnW, playBtnH, 1001, 0});
+
+    clearJniException(env);
 }
 
 // ---------------------------------------------------------------------------
 // 4. LEVEL SELECTION SCREEN
 // ---------------------------------------------------------------------------
 void renderLevelSelectionGrid(JNIEnv* env, jobject canvas) {
-    if (gameUI.currentState != STATE_LEVELS) return;
+    if (gameUI.currentState != STATE_LEVELS || !canvas) return;
 
     int totalLevels = 18;
     int cols = 3;
@@ -164,6 +200,8 @@ void renderLevelSelectionGrid(JNIEnv* env, jobject canvas) {
 // 5. OVERLAYS & POPUPS
 // ---------------------------------------------------------------------------
 void drawPopupsAndOverlays(JNIEnv* env, jobject canvas) {
+    if (!canvas) return;
+
     if (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive || gameUI.isPausePopupActive) {
         drawRoundRectNative(env, canvas, 0.0f, 0.0f, (float)gameUI.screenWidth, (float)gameUI.screenHeight, 0, 0, 0xAA000000);
         
@@ -175,6 +213,8 @@ void drawPopupsAndOverlays(JNIEnv* env, jobject canvas) {
 // 6. MASTER RENDER DISPATCHER
 // ---------------------------------------------------------------------------
 void renderUI(JNIEnv* env, jobject obj, jobject canvas) {
+    if (!canvas || !env) return;
+
     gameUI.UIButtons.clear();
 
     switch (gameUI.currentState) {
@@ -190,4 +230,6 @@ void renderUI(JNIEnv* env, jobject obj, jobject canvas) {
 
     drawBottomNavigationBar(env, obj, canvas);
     drawPopupsAndOverlays(env, canvas);
+
+    clearJniException(env);
 }
