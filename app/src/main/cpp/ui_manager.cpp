@@ -2,14 +2,6 @@
 #include <algorithm>
 #include <cmath>
 
-// Marked 'static' to avoid duplicate symbol conflicts with native-lib.cpp
-static void setPaintFontWeight(JNIEnv* env, jobject paint, bool bold) {
-    if (!paint) return;
-    jclass paintCls = env->GetObjectClass(paint);
-    jmethodID setFakeBoldText = env->GetMethodID(paintCls, "setFakeBoldText", "(Z)V");
-    if (setFakeBoldText) env->CallVoidMethod(paint, setFakeBoldText, bold);
-}
-
 // ---------------------------------------------------------------------------
 // 1. MAIN HEADER ("rrows" title + animated/rotated arrow)
 // ---------------------------------------------------------------------------
