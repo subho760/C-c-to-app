@@ -145,11 +145,12 @@ JNIEXPORT void JNICALL
 Java_com_night_backgroundchange_MainActivity_nativeOnTouch(JNIEnv* env, jobject obj, jfloat x, jfloat y) {
     if (!gameUI.engineInitialized) return;
 
-    // Change line 148 in native-lib.cpp from:
+    // Change this line:
 checkGlobalClosePopupDismiss(x, y);
 
-// To:
+// To this:
 // checkGlobalClosePopupDismiss(x, y);
+    
 
 
     bool blockingPopup = (gameUI.isHintPopupActive || gameUI.isThemePopupActive || gameUI.isRatingPopupActive || gameUI.isPausePopupActive);
